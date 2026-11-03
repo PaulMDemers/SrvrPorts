@@ -1,0 +1,21 @@
+[submodule "upstream/zlib"]
+	path = upstream/zlib
+	url = https://github.com/madler/zlib.git
+[submodule "upstream/lua"]
+	path = upstream/lua
+	url = https://github.com/lua/lua.git
+[submodule "upstream/cjson"]
+	path = upstream/cjson
+	url = https://github.com/DaveGamble/cJSON.git
+[submodule "upstream/inih"]
+	path = upstream/inih
+	url = https://github.com/benhoyt/inih.git
+[submodule "upstream/linenoise"]
+	path = upstream/linenoise
+	url = https://github.com/antirez/linenoise.git
+[submodule "upstream/libuv"]
+	path = upstream/libuv
+	url = https://github.com/libuv/libuv.git
+[submodule "upstream/node"]
+	path = upstream/node
+	url = https://github.com/nodejs/node.git

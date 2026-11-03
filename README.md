@@ -1,6 +1,6 @@
-# srvros Ports
+# SrvrPorts
 
-This directory is the staging area for third-party libraries and applications
+This repository mounts at `ports/` in SrvrOS and is the staging area for third-party libraries and applications
 that will be brought up on srvros through the POSIX-compat layer.
 
 ## Upstream Source
@@ -74,3 +74,15 @@ bounds and remaining gaps, and [libuv notes](../docs/libuv-port.md) for the loca
 adapter's scope. A full upstream libuv backend and a reproducible Node runtime
 remain separate milestones. Recover Node's missing port history before treating
 its historical runtime results as current acceptance.
+
+## Repository integration
+
+Clone [SrvrOS](https://github.com/PaulMDemers/SrvrOS) recursively and work in
+`ports/`. Build from the OS root with `tools/host-env.sh make -j2 all`, or
+`sh tools/macos/build.sh -j2 all` on Apple Silicon. This repository supplies
+source, adapters and port recipes; it requires the matched SrvrOS SDK and
+image tooling. Keep all seven upstream submodules at their recorded commits.
+
+History was extracted from SrvrOS `74d38d59869f9e6201c6cad6547461cd9fa8dac6`
+without changing upstream source or pins. Publish a port commit first, then
+update the OS submodule pointer and verify the combined image.
