@@ -7,7 +7,7 @@
 > and custom emulator used the incorrect `9cba` identity. The kernel now gates
 > experimental SPI and matches GSPI `9ce6`; the emulator still needs correction.
 > Its agreement with the old driver does not validate physical hardware.
-> See the [current review](../../docs/project-review-2026-10-16.md). The notes below preserve the earlier
+> See the [current review](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/project-review-2026-10-16.md). The notes below preserve the earlier
 > investigation and should not override this newer evidence.
 
 This package adds a focused Apple MacBook Air A1466 input personality to QEMU

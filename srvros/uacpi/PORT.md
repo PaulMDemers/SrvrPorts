@@ -44,7 +44,7 @@ that battery sampling, suspend, power-off or firmware initialization works.
 after explicitly requested methods, compares the ECDT device path, HID, UID,
 GPE and CRS with the loaded namespace. It also reports optional Global Lock
 requirements. No controller access is added. The
-[native EC runtime gate](../../../docs/native-ec-runtime.md) records the supported
+[native EC runtime gate](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/native-ec-runtime.md) records the supported
 subset, captured Air result, initialization side effects and remaining ownership
 work. `make test-acpi-ec-resources test-acpi-namespace` covers malformed tables,
 namespace disagreements, type errors and private snapshot behavior. Logged AML
@@ -109,7 +109,7 @@ and is not a level-triggered hardware SCI test.
 The future uACPI completion callback must first synchronize installed interrupt
 producers, then call drain. Queue idleness alone is not interrupt quiescence.
 SCI ownership, full runtime initialization and EC integration remain required;
-see the [integration plan](../../../docs/macbook-air-laptop-services-2026-10-18.md#live-acpi-runtime-integration-plan).
+see the [integration plan](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/macbook-air-laptop-services-2026-10-18.md#live-acpi-runtime-integration-plan).
 
 `make check-acpi-runtime-build` separately compiles the full, event-enabled
 upstream sources plus the queue with SrvrOS's freestanding x86-64 flags, then
@@ -410,7 +410,7 @@ Failed partial preparation or callback registration restores the saved masked
 route. A failed enable is remasked; failed masking/removal/restoration poisons
 the owner and requires a halt with state retained. The caller still owns source
 quiescence, worker draining and CPU0 lifecycle serialization. See the
-[native runtime gate](../../../docs/native-ec-runtime.md#sci-route-ownership-implementation)
+[native runtime gate](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/native-ec-runtime.md#sci-route-ownership-implementation)
 for the supported topology subset and limits.
 
 Host fault injection includes immediate interrupt delivery during unmask,
@@ -429,7 +429,7 @@ while the synthetic source stays asserted consume the same budget. Failure
 retains its cause, worker and namespace and halts with interrupts disabled.
 The elapsed-time check is cooperative; an executing AML method is not canceled.
 The lifecycle drain deadline remains responsible for a worker that cannot return.
-See [query ownership limits](../../../docs/native-ec-runtime.md#bounded-ec-query-draining)
+See [query ownership limits](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/native-ec-runtime.md#bounded-ec-query-draining)
 before binding this to a native GPE.
 
 Run after rebuilding `acpi-runtime-vm-kernel`, sequentially:
@@ -462,7 +462,7 @@ initialization, but SrvrOS refuses readiness and cleans up with zero heap. A
 following normal start must still work. Native status-domain ownership remains
 unimplemented: uACPI clears every GPE status byte while setting up the blocks,
 and those pending bits cannot be restored from a snapshot. See the
-[event ownership audit](../../../docs/native-ec-runtime.md#event-register-ownership-audit).
+[event ownership audit](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/native-ec-runtime.md#event-register-ownership-audit).
 
 `make test-acpi-event-io` covers malformed/conflicting/overlapping layouts,
 register width/direction, all 16-bit fixed-enable values and all byte GPE-enable
@@ -476,7 +476,7 @@ control bits and refusing SLP_EN. Generic PM1 writes remain denied; this is not
 native firmware ownership. The successful and injected-sleep refusal cases are
 run by `tools/acpi_global_lock_smoke.py --fault release` and
 `--fault release-sleep-denied`. See the
-[notification contract](../../../docs/native-ec-runtime.md#owner-scoped-os-to-firmware-notification)
+[notification contract](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/native-ec-runtime.md#owner-scoped-os-to-firmware-notification)
 for the per-access policy, host coverage and acceptance limits.
 
 
@@ -488,6 +488,6 @@ SCI/selected GPE and serialized SBS work, and either retires cleanly or halts
 with live state retained. `acpi-battery-vm-kernel` uses the same lifecycle with a
 synthetic controller; it is never staged as the physical image. The normal
 kernel retains its refusal stub and isolated probe. See the
-[connected audit, policy and v31 trial](../../../docs/native-ec-runtime.md#explicit-native-battery-diagnostic)
+[connected audit, policy and v31 trial](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/native-ec-runtime.md#explicit-native-battery-diagnostic)
 for exact permissions, tests and remaining physical acceptance. Earlier sections
 record the incremental fixture work and are not native acceptance claims.

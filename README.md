@@ -53,7 +53,7 @@ recognize `--dest-os=srvros`, while a stripped Linux stand-in profile can
 generate a build graph. The previous port gitlink was unavailable; the checkout
 was restored to clean upstream. Later runtime milestones in the port notes are
 historical and have not been reproduced from this restored source. See
-[Node recovery](../docs/development.md#node-port-recovery) before resuming it.
+[Node recovery](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/development.md#node-port-recovery) before resuming it.
 
 ## Porting Rules
 
@@ -69,8 +69,8 @@ historical and have not been reproduced from this restored source. See
 
 File metadata, mapped memory and substantial stdio/socket/thread support now
 exist. Presence of an API does not establish full POSIX conformance: use the
-[supported profile](../docs/posix-supported-profile.md) for validated behavior,
-bounds and remaining gaps, and [libuv notes](../docs/libuv-port.md) for the local
+[supported profile](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/posix-supported-profile.md) for validated behavior,
+bounds and remaining gaps, and [libuv notes](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/libuv-port.md) for the local
 adapter's scope. A full upstream libuv backend and a reproducible Node runtime
 remain separate milestones. Recover Node's missing port history before treating
 its historical runtime results as current acceptance.

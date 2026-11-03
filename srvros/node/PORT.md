@@ -5,7 +5,7 @@
 > upstream v24.16.0. The runtime milestones below are historical and have
 > not been reproduced from this restored checkout. Recover the previous
 > development machine's Node Git history before resuming the runtime port;
-> see [recovery details](../../../docs/development.md#node-port-recovery).
+> see [recovery details](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/development.md#node-port-recovery).
 
 ## Upstream
 
