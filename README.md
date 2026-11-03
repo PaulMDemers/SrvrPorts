@@ -5,6 +5,7 @@ that will be brought up on srvros through the POSIX-compat layer.
 
 ## Upstream Source
 
+- `upstream/awk`: One True Awk, pinned to `5739fd79bcfc75ba7526773d0cf634521f8aca3c`; see [port contract](srvros/awk/PORT.md).
 - `upstream/uacpi`: MIT AML interpreter, pinned to 7.0.0; offline/isolated probes, Q35 runtime fixtures and separately gated native runtime (see [port contract](srvros/uacpi/PORT.md)).
 - `upstream/zlib`: zlib compression library, pinned to `v1.3.2`.
 - `upstream/lua`: Lua runtime, pinned to `v5.4.8`.
@@ -81,7 +82,7 @@ Clone [SrvrOS](https://github.com/PaulMDemers/SrvrOS) recursively and work in
 `ports/`. Build from the OS root with `tools/host-env.sh make -j2 all`, or
 `sh tools/macos/build.sh -j2 all` on Apple Silicon. This repository supplies
 source, adapters and port recipes; it requires the matched SrvrOS SDK and
-image tooling. Keep all seven upstream submodules at their recorded commits.
+image tooling. Keep upstream submodules at their recorded commits.
 
 History was extracted from SrvrOS `74d38d59869f9e6201c6cad6547461cd9fa8dac6`
 without changing upstream source or pins. Publish a port commit first, then
