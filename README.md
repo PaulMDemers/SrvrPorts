@@ -56,6 +56,10 @@ was restored to clean upstream. Later runtime milestones in the port notes are
 historical and have not been reproduced from this restored source. See
 [Node recovery](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/development.md#node-port-recovery) before resuming it.
 
+The experimental browser prerequisites are a [threaded libc++ slice](srvros/libcxx/PORT.md)
+and an [explicit SrvrOS WebKit/JSCOnly overlay](srvros/webkit/PORT.md). They consume
+the matched OS SDK; they do not provide a running JavaScriptCore or browser.
+
 ## Porting Rules
 
 - Keep upstream repos clean. Put srvros-specific build glue outside the
