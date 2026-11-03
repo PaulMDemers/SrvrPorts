@@ -10,7 +10,8 @@ upstream-supported port, browser, renderer, or guest runtime.
 
 Use `toolchain.cmake` with CMake and Ninja to explore only `PORT=JSCOnly`,
 `ENABLE_STATIC_JSC=ON`, `ENABLE_JIT=OFF`, `ENABLE_WEBASSEMBLY=OFF`,
-`USE_SYSTEM_MALLOC=ON`, and `ENABLE_REMOTE_INSPECTOR=OFF`. These constraints
+`USE_SYSTEM_MALLOC=ON`, `USE_HEADER_MAPS=OFF`, and
+`ENABLE_REMOTE_INSPECTOR=OFF`. These constraints
 are required for the current probe; dynamic JSC, JIT, WebAssembly and browser
 builds have not been implemented. The driver assumes the repository's prepared
 `build/tooling/zig` and `build/sysroot/srvros` SDK, and places the SDK startup,
@@ -46,3 +47,17 @@ SrvrOS `crt0`. The compiler consequently gives `main` the standard implicit
 mode does not establish complete hosted library or OS support. Includes and
 links remain restricted to the explicit SDK and threaded runtime. Other missing
 hosted facilities remain real port blockers. The C driver remains freestanding.
+
+For the pinned ICU milestone, run the parent repository's
+`python3 tools/browser_platform_probe.py --icu` after building the ICU recipe.
+This verifies its input/output receipt before adding only
+`build/browser-icu/sysroot` to target discovery. The ICU install stays separate
+from the base SDK. The toolchain accepts `SRVROS_ICU_ROOT` as an additional
+cross-build root; the harness supplies the same path as `ICU_ROOT`. No host
+ICU library satisfies this check. Without `--icu`, the original SDK-only probe
+continues to expose the missing ICU prerequisite.
+
+The WPE release archive omits `Tools/Scripts/hmaptool`, although JSCOnly with
+Clang defaults to using it. The probe selects upstream `USE_HEADER_MAPS=OFF`
+(the normal WPE/GTK default) and uses ordinary include paths. This removes an
+optional host build optimization without substituting a missing target API.
