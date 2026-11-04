@@ -1,2 +1,3 @@
 # Unified diff blank context lines contain one required space.
 srvros/webkit/srvros-platform.patch whitespace=-blank-at-eol
+srvros/libcxx/patches/*.patch whitespace=-blank-at-eol
