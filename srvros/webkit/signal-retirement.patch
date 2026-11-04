@@ -1,0 +1,68 @@
+--- a/Source/WTF/wtf/posix/ThreadingPOSIX.cpp
++++ b/Source/WTF/wtf/posix/ThreadingPOSIX.cpp
+@@ -738,7 +738,10 @@
+         if (pthread_kill(m_handle, SIGUSR1))
+             srvFatal();
+         waitSrvrOSSignalAck(srvRunning, ticket);
++        --m_suspendCount;
++        // Last access: the resumed worker may now finish TLS retirement.
+         m_srvPhase.store(srvIdle, std::memory_order_release);
++        return;
+     }
+     --m_suspendCount;
+ #else
+@@ -852,10 +855,50 @@
+         // Keep INFO blocked through native exit before releasing the TLS ref.
+         sigset_t blocked, pending;
+         if (sigemptyset(&blocked) || sigaddset(&blocked, SIGUSR1)
+-            || pthread_sigmask(SIG_BLOCK, &blocked, nullptr)
+-            || srvCurrentThread != thread
+-            || thread->m_srvPhase.load(std::memory_order_acquire) != srvIdle
+-            || sigpending(&pending) || sigismember(&pending, SIGUSR1) != 0)
++            || pthread_sigmask(SIG_BLOCK, &blocked, nullptr))
++            srvFatal();
++        auto checkIdentity = [&] {
++            long tid = srv_thread_self();
++            if (!thread->m_srvInitialized || tid <= 0
++                || thread->m_srvTid != static_cast<uint64_t>(tid) || srvCurrentThread != thread
++                || sigpending(&pending) || sigismember(&pending, SIGUSR1) != 0)
++                srvFatal();
++        };
++        checkIdentity();
++        uint64_t ticket = thread->m_srvTicket.load(std::memory_order_acquire);
++        unsigned phase = thread->m_srvPhase.load(std::memory_order_acquire);
++        if (thread->m_srvAckTicket.load(std::memory_order_acquire) != ticket)
++            srvFatal();
++        if (phase != srvIdle) {
++            // The INFO handler has finished, but its controller can still be
++            // consuming the final ACK. Keep TLS and the group reference until
++            // that exact controller publishes Idle. Never consume its ACK here.
++            long previous = srv_monotonic_us();
++            if (phase != srvRunning || !ticket || previous < 0 || previous > LONG_MAX - 10000000)
++                srvFatal();
++            long deadline = previous + 10000000;
++            for (unsigned polls = 0; ; ++polls) {
++                checkIdentity();
++                phase = thread->m_srvPhase.load(std::memory_order_acquire);
++                if (thread->m_srvTicket.load(std::memory_order_acquire) != ticket
++                    || thread->m_srvAckTicket.load(std::memory_order_acquire) != ticket)
++                    srvFatal();
++                long now = srv_monotonic_us();
++                if (now < previous || now >= deadline)
++                    srvFatal();
++                if (phase == srvIdle)
++                    break;
++                if (phase != srvRunning || polls == 100000)
++                    srvFatal();
++                previous = now;
++                // Direct scheduler yield also bounds attempts if the clock stalls.
++                srv_yield();
++            }
++        }
++        checkIdentity();
++        if (thread->m_srvPhase.load(std::memory_order_acquire) != srvIdle
++            || thread->m_srvTicket.load(std::memory_order_acquire) != ticket
++            || thread->m_srvAckTicket.load(std::memory_order_acquire) != ticket)
+             srvFatal();
+         srvCurrentThread = nullptr;
+ #endif

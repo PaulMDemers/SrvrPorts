@@ -72,9 +72,27 @@ dependents. `python3 tools/browser_jsc_replay.py build/browser-jsc/run-...`
 re-extracts the archive, reapplies the recorded stack and verifies the whole
 source fingerprint.
 
-Most importantly for any guest test, the current SDK rejects `SA_SIGINFO` and
-WTF's POSIX thread-suspension path requires it. The optional signal-name patch
-does not synthesize signal delivery or contexts. A linked shell must not be
-presented as a working interpreter or safe garbage collector until that runtime
-contract and the other observed guest prerequisites have been addressed and
-tested.
+Normal public signal dispatch remains disabled. PR334 supplies an explicitly
+gated experimental kernel/libc contract and a separate WTF overlay selected by
+`--experimental-signal-context`. Its reviewed native context/nested-wait probe
+passes, but this does not establish interpreter or garbage-collector acceptance.
+The first freshly linked actual-WTF guest exits134 after the main-context marker;
+the remaining utility, GC-root and JavaScript cases have not run.
+
+`signal-retirement.patch` corrects an independently reproduced WTF lifetime
+race: a resumed worker can reach its TLS destructor before the controller
+consumes the final acknowledgement. Retirement retains TLS/group ownership until
+the matching controller publishes Idle, without consuming its acknowledgement.
+The controller updates the suspend count before its final Idle publication.
+Invalid identity, pending INFO, ticket changes and invalid phases remain fatal;
+clock checks and a finite yield budget bound the drain attempts. The INFO handler
+and class headers are unchanged. This candidate is host-tested and awaiting
+owner review and matched target/guest verification; it is not attribution of the
+original134 or a JavaScript pass.
+
+`test_signal_retirement.py --source PATH --output DIR --sanitizers` extracts the
+actual patched TLS destructor and resume method. Its35 cases pass in strict and
+ASan/UBSan profiles; `--expect-old-failure` confirms the original source rejects
+both valid posted/consumed-acknowledgement schedules. Optional `--baseline PATH`
+requires the INFO handler to remain byte-identical. These deterministic host
+schedules supplement the required real guest run.
