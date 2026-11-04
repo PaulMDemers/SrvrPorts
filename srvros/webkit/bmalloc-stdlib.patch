@@ -1,0 +1,9 @@
+--- a/Source/bmalloc/bmalloc/bmalloc.h
++++ b/Source/bmalloc/bmalloc/bmalloc.h
+@@ -28,6 +28,7 @@
+ #ifdef __cplusplus
+ 
+ #include "BPlatform.h"
++#include <stdlib.h>
+ 
+ BALLOW_UNSAFE_BUFFER_USAGE_BEGIN

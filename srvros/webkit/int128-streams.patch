@@ -1,0 +1,56 @@
+--- a/Source/WTF/wtf/Int128.cpp
++++ b/Source/WTF/wtf/Int128.cpp
+@@ -127,6 +127,7 @@
+   return remainder;
+ }
+ 
++#if !OS(SRVROS) || _LIBCPP_HAS_LOCALIZATION
+ namespace {
+ 
+ static std::string UInt128ToFormattedString(UInt128Impl v, std::ios_base::fmtflags flags) {
+@@ -196,6 +197,7 @@
+ 
+   return os << rep;
+ }
++#endif // SrvrOS libc++ without localization has no iostream support
+ 
+ namespace {
+ 
+@@ -255,6 +257,7 @@
+                     UInt128Low64(remainder));
+ }
+ 
++#if !OS(SRVROS) || _LIBCPP_HAS_LOCALIZATION
+ std::ostream& operator<<(std::ostream& os, Int128Impl v) {
+   std::ios_base::fmtflags flags = os.flags();
+   std::string rep;
+@@ -299,6 +302,7 @@
+ 
+   return os << rep;
+ }
++#endif
+ 
+ void printInternal(PrintStream& out, UInt128 value)
+ {
+--- a/Source/WTF/wtf/Int128.h
++++ b/Source/WTF/wtf/Int128.h
+@@ -207,7 +207,9 @@
+ };
+ 
+ // allow UInt128Impl to be logged
++#if !OS(SRVROS) || _LIBCPP_HAS_LOCALIZATION
+ WTF_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os, UInt128Impl v);
++#endif
+ 
+ // TODO(strel) add operator>>(std::istream&, UInt128Impl)
+ 
+@@ -406,7 +408,9 @@
+ #endif  // byte order
+ };
+ 
++#if !OS(SRVROS) || _LIBCPP_HAS_LOCALIZATION
+ WTF_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os, Int128Impl v);
++#endif
+ 
+ // TODO(absl-team) add operator>>(std::istream&, Int128Impl)
+ 

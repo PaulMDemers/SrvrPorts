@@ -1,0 +1,34 @@
+--- a/Source/WTF/wtf/generic/MemoryFootprintGeneric.cpp
++++ b/Source/WTF/wtf/generic/MemoryFootprintGeneric.cpp
+@@ -28,13 +28,31 @@
+ #include <wtf/AvailableMemory.h>
+ #include <wtf/MemoryFootprint.h>
+ #include <wtf/Platform.h>
++#if OS(SRVROS)
++#include <unistd.h>
++extern "C" {
++#include <srvros/sys.h>
++}
++#endif
+ 
+ namespace WTF {
+ 
+ size_t memoryFootprint()
+ {
++#if OS(SRVROS)
++    srv_process_info info { };
++    info.abi_version = SRV_ABI_VERSION;
++    info.struct_size = sizeof(info);
++    auto pid = getpid();
++    auto result = srv_proc_list(SRV_PROC_LIST_BY_PID | static_cast<uint64_t>(pid), &info);
++    RELEASE_ASSERT(result > 0 && info.pid == static_cast<uint64_t>(pid));
++    RELEASE_ASSERT(info.abi_version == SRV_ABI_VERSION && info.struct_size >= sizeof(info));
++    // Current private mapped user pages; not kernel pages or shared surfaces.
++    return static_cast<size_t>(info.user_mapped_bytes);
++#else
+     auto memoryUse = memoryStatus();
+     return memoryUse.memoryFootprint;
++#endif
+ }
+ 
+ } // namespace WTF
