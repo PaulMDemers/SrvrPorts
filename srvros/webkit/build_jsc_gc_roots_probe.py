@@ -5,6 +5,7 @@ No guest is run. The generated receipt must contain gc_root_probe_adapter.
 """
 import hashlib
 import json
+import shlex
 from pathlib import Path
 import sys
 
@@ -14,6 +15,32 @@ sys.path.insert(0,str(TOOLS))
 
 
 def digest(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def jit_link_objects(build):
+    """Read only the JavaScriptCoreJIT objects actually linked into bin/jsc."""
+    lines=(build/'build.ninja').read_text().splitlines()
+    starts=[i for i,line in enumerate(lines) if line.startswith('build bin/jsc:')]
+    if len(starts)!=1: raise ValueError('expected exactly one bin/jsc build rule')
+    block=[]
+    for line in lines[starts[0]+1:]:
+        if not line.startswith('  '): break
+        block.append(line)
+    libraries=[line.split('=',1)[1].strip() for line in block if line.startswith('  LINK_LIBRARIES =')]
+    if len(libraries)!=1: raise ValueError('expected one bin/jsc LINK_LIBRARIES')
+    prefix='Source/JavaScriptCore/CMakeFiles/JavaScriptCoreJIT.dir/'
+    names=[token for token in shlex.split(libraries[0]) if token.startswith(prefix)]
+    if not names or any(not name.endswith('.obj') for name in names) or len(set(names))!=len(names):
+        raise ValueError('missing, invalid or duplicate JavaScriptCoreJIT objects')
+    objects=[]
+    for name in names:
+        relative=Path(name)
+        if relative.is_absolute() or '..' in relative.parts: raise ValueError('unsafe JIT object path')
+        path=build/relative
+        if not path.is_file() or not path.resolve().is_relative_to(build.resolve()):
+            raise ValueError('missing or escaped JIT object: '+name)
+        objects.append(path)
+    return objects
 
 
 def main():
@@ -37,14 +64,17 @@ def main():
             "    asm_obj=stem.with_suffix('.asm.o')\n"
             "    invoke('assemble',[str(zig),'cc','-target','x86_64-freestanding-none','-mno-red-zone','-c',str(asm_source),'-o',str(asm_obj)],ROOT,60,result,stem.with_suffix('.asm.log'))\n"
             "    link.insert(link.index(str(obj))+1,str(asm_obj))\n"
+            "    jit_objects=jit_link_objects(build)\n"
+            "    link[link.index('-Wl,--start-group'):link.index('-Wl,--start-group')]=list(map(str,jit_objects))\n"
+            "    result['javascriptcore_jit_objects']=[relative(p) for p in jit_objects]\n"
             "    invoke('link',link,entry['directory'],120,result,stem.with_suffix('.link.log'))",
         "if args.build_helper_snapshot: paths.append(args.build_helper_snapshot.resolve())":
-            "paths.extend([asm_source,asm_obj])\n    if args.build_helper_snapshot: paths.append(args.build_helper_snapshot.resolve())",
+            "paths.extend([asm_source,asm_obj,*jit_objects])\n    if args.build_helper_snapshot: paths.append(args.build_helper_snapshot.resolve())",
     }
     for old,new in substitutions.items():
         if source.count(old)!=1: raise SystemExit('fixture builder changed; review this adapter')
         source=source.replace(old,new,1)
-    namespace={'__name__':'__main__','__file__':str(builder)}
+    namespace={'__name__':'__main__','__file__':str(builder),'jit_link_objects':jit_link_objects}
     exec(compile(source,str(builder),'exec'),namespace)
     out=namespace.get('receipt_path')
     if not out: raise SystemExit('fixture builder did not produce a receipt')
