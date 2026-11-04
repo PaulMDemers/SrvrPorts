@@ -54,11 +54,17 @@ int main(void) {
         if (kill(child, SIGINT)) goto done;
         if (!sendtext(in[1], "12347\n") || !expect(out[0], "12347\n")) goto done;
     }
+    if (!sendtext(in[1], "12350\n") || !expect(out[0], "12350\n")) goto done;
     if (!sendtext(in[1], "while(1){}\n")) goto done;
     delay();
+    {
+        pid_t observed = waitpid(child, &status, WNOHANG);
+        if (observed == child) { child = -1; goto done; }
+        if (observed != 0) goto done;
+    }
     if (kill(child, SIGTERM)) goto done;
     for (int i = 0; i < 50; i++) {
-        if (waitpid(child, &status, WNOHANG) == child) { child = -1; ok = WIFSIGNALED(status) || WIFEXITED(status); break; }
+        if (waitpid(child, &status, WNOHANG) == child) { child = -1; ok = WIFEXITED(status) && WEXITSTATUS(status) == 0; break; }
         delay();
     }
 done:
