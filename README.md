@@ -5,6 +5,8 @@ that will be brought up on srvros through the POSIX-compat layer.
 
 ## Upstream Source
 
+- `upstream/less`: less 710 release snapshot; see [port contract](srvros/less/PORT.md).
+
 - `upstream/bc`: bc 7.0.3 release snapshot; see [port contract](srvros/bc/PORT.md).
 
 - `upstream/jq`: jq 1.8.2 release snapshot; see [port contract](srvros/jq/PORT.md).
