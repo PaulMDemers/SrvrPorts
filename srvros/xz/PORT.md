@@ -38,7 +38,7 @@ bound inside a codec call.
 sources remain untouched. Bundled `getopt_long` is prefixed to avoid collisions
 with the SDK.
 
-The guest receipt `build/review/xz/20261104-134940-2dtqpmm7` passed production
+The guest receipt `build/review/xz/20261104-135556-m_qxupp7` passed production
 interoperability across two boots, including decoding a host preset-6 stream.
 Sampled private mapped bytes were 10,866,688 during that decode and 5,283,840
 during encoding; these samples are not peak resident-memory guarantees.
@@ -55,6 +55,43 @@ mappings above. Separately, six native-host upstream test programs reported 22
 passes and two skipped threaded subcases; those are host results, not guest
 upstream-suite results.
 
-Graphical Terminal verification, a second clean CLI reproducibility build and
-existing ports checks remain pending. No native-device or physical-device
-acceptance is implied.
+The final guest matrix additionally covers zero-filled data, legacy `.lzma`
+rejection, malformed/truncated/checksum-failed streams, immutable codec caps,
+failed output and input preservation over reboot. Sparse output is disabled
+before file setup, including when stdout is redirected to a regular file.
+
+Actual graphical Terminal receipt
+`build/review/xz-terminal/proof-svpdq5tn/receipt.json` passes report compression,
+integrity checking, host preset-6 decoding, byte-exact restoration, bad-input
+feedback, two actual Ctrl-C pipeline interruptions and shell continuation. Expert
+screenshots show the restored report and usable prompt; no user study is claimed.
+Existing ports smoke passes with guest fsck `leaks=0 fat=0 errors=0`.
+
+Two clean CLI ELF builds match SHA-256
+`e0efaa0d2b08361a0c56d58c247cea01704a4e4b1ad30ba9c68a8d5cc4128e1f`.
+Runtime ELF SHA-256 is
+`1d5c86a03caa5aa68ba8b7706b20573b37006fcc29f6d3f3393c5e59e770131a`.
+This is CLI reproducibility, not whole disk/ISO reproducibility. The committed
+OS code tree `425c87d2` retains all three tested payload hashes; later delivery
+documentation does not change the implementation. Full local evidence is under
+`build/review/xz/`, including source authentication, build comparison and
+`upstream-tests/summary.json`. No native/physical-device acceptance is implied.
+
+Reproduce sequentially in the OS checkout:
+
+```sh
+sh tools/macos/build.sh -j4 all build/userspace/test_xz_probe.elf build/userspace/test_xz_alloc_probe.elf build/userspace/xz-diagnostic.elf
+python3 tools/xz_smoke.py
+python3 tools/xz_terminal_smoke.py
+python3 tools/ports_smoke.py
+```
+
+The graphical harness requires visual screenshot review. For native upstream
+checks, extract the authenticated release archive into a separate build directory
+(preserving archive timestamps so generated Autotools files do not spuriously
+regenerate), configure with `--disable-shared --disable-nls --disable-threads
+--disable-scripts --disable-doc --disable-sandbox`, then run GNU Make `check`
+with `TESTS='test_check test_stream_flags test_block_header
+test_stream_buffer_encode test_stream_buffer_decode test_memlimit'`.
+The two threaded subcases intentionally skip in this configuration.
+
