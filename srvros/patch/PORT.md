@@ -42,7 +42,25 @@ termination occur in normal control flow. The separate diagnostic variant is
 planned to use a matching-progress marker, allocation-failure injection, and a
 post-snapshot output-write fault. These hooks are absent from production.
 
-**Not built or accepted.** Cross-configured gnulib sources and headers, the
-SDK link recipe, signal and output failure behavior, snapshot and filesystem
+The first SDK cross-configured production and diagnostic ELF targets link.
+The configuration and selected gnulib sources are recorded in this port. The
+unused `fpending`, `fseterr`, `close-stream` and `closeout` objects are omitted:
+the bounded adapter checks stream close errors directly and does not use the
+upstream closeout path. The local compatibility layer uses the SDK's C-locale
+wide-character primitives; unsupported symlink-loop failures are reported as
+`EOPNOTSUPP` where the SDK has no `ELOOP`. This does not establish general
+symlink safety. Configure did not recognize `--disable-nls`; Patch has no
+`ENABLE_NLS` setting in its generated configuration, and the bounded program
+uses the C locale. No target behavior is established by linking.
+
+The first disposable 512 MiB target boot passes basic replacement, zero-count
+insertion, an exact header-like deleted record, missing final newlines, a
+relative source named --version, existing-output/legacy refusals, failed-hunk
+status 1 with output removed, preserved inputs and clean fsck. This is an initial
+dirty-source proof with adapter hashes, not final reproducibility or full-profile
+acceptance. Source setup failures were retained and corrected without changing
+shared runtime contracts.
+
+**Not accepted.** Signal and output failure behavior, snapshot and filesystem
 semantics, memory use, GNU patch interchange and reproducible builds remain
 unverified. No physical-device acceptance is implied.

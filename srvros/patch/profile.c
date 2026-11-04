@@ -43,6 +43,16 @@ void srv_patch_set_output(FILE *stream) {
  srv_patch_output_diagnostic();
 #endif
 }
+void srv_patch_output_progress(FILE *stream, size_t written) {
+#ifdef SRV_PATCH_DIAGNOSTIC
+ if (stream == output_stream && written) {
+  extern void srv_patch_progress_diagnostic(FILE *);
+  srv_patch_progress_diagnostic(stream);
+ }
+#else
+ (void)stream; (void)written;
+#endif
+}
 void srv_patch_output_bytes(FILE *stream, const void *data, size_t n) {
  if (stream != output_stream) return;
  const unsigned char *p=data;

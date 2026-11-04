@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare a bounded SrvrOS adapter; never modify the upstream checkout."""
 from pathlib import Path
-import shutil, sys
+import shutil, sys, re
 src, dst = map(Path, sys.argv[1:3])
 if dst.exists(): shutil.rmtree(dst)
 shutil.copytree(src, dst)
@@ -9,8 +9,15 @@ for p in dst.rglob('*'):
  if p.is_file(): p.chmod(p.stat().st_mode | 0o200)
 def edit(name,old,new):
  p=dst/name; s=p.read_text(); assert old in s,(name,old[:100]); p.write_text(s.replace(old,new,1))
+edit('lib/renameatu.c', '#undef renameat', '#undef renameat\n/* SDK declares renameat in unistd; gnulib may rename its prototype. */\nextern int renameat (int, const char *, int, const char *);')
+edit('lib/getprogname.c', '#  error "getprogname module not ported to this OS"', '  extern const char *program_name;\n  return program_name ? last_component (program_name) : "?";')
+# SDK has no ELOOP; unsupported symlink traversal fails closed as EOPNOTSUPP.
+for name in ('lib/canonicalize-lgpl.c','src/safe.c','src/patch.c'):
+ p=dst/name; data=p.read_text(); assert 'ELOOP' in data; p.write_text(re.sub(r'\bELOOP\b', 'EOPNOTSUPP', data))
+edit('src/safe.c', '      || errno == EMLINK  /* FreeBSD 10.1: Too many links */\n', '')
 for name in ('src/patch.c','src/pch.c','src/inp.c','src/util.c'):
  edit(name,'#include <common.h>','#include <common.h>\n#include "profile.h"')
+edit('src/patch.c', 'enum conflict_style conflict_style;', '#ifdef ENABLE_MERGE\nenum conflict_style conflict_style;\n#endif')
 edit('src/patch.c','#include <common.h>','#include <common.h>\n#include <signal.h>')
 edit('src/patch.c','    exit_failure = EXIT_TROUBLE;', '''    exit_failure = EXIT_TROUBLE;
     signal (SIGPIPE, SIG_IGN);
@@ -139,6 +146,7 @@ edit('src/util.c','''  if (fwrite (ptr, size, nitems, stream) < nitems)''','''  
   srv_patch_output_bytes (stream, ptr, size * nitems);
   size_t result = fwrite (ptr, size, nitems, stream);
   srv_patch_signal_checkpoint ();
+  if (result == nitems) srv_patch_output_progress (stream, size * result);
   if (result < nitems)''')
 edit('src/util.c','''  ssize_t r = read (filedes, buf, MIN (nbyte, IO_BUFSIZE));''','''  srv_patch_signal_checkpoint ();
   ssize_t r = read (filedes, buf, MIN (nbyte, IO_BUFSIZE));

@@ -32,3 +32,18 @@ void srv_patch_snapshot_diagnostic(void) {
  srv_patch_signal_checkpoint();
  if (n!=1) exit(2);
 }
+
+void srv_patch_progress_diagnostic(FILE *stream) {
+ static int sent;
+ const char *enable=getenv("SRV_PATCH_TEST_PAUSE_OUTPUT");
+ if (sent || !enable || !*enable) return;
+ sent=1;
+ int result=fflush(stream);
+ srv_patch_signal_checkpoint();
+ if (result==EOF) exit(2);
+ if (write(3,"W",1)!=1) exit(2);
+ char token;
+ ssize_t n=read(4,&token,1);
+ srv_patch_signal_checkpoint();
+ if (n!=1) exit(2);
+}
