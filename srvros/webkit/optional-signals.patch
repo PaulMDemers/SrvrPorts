@@ -1,0 +1,61 @@
+--- a/Source/WTF/wtf/threads/Signals.cpp
++++ b/Source/WTF/wtf/threads/Signals.cpp
+@@ -405,11 +405,21 @@
+ inline std::tuple<int, std::optional<int>> toSystemSignal(Signal signal)
+ {
+     switch (signal) {
+-    case Signal::AccessFault: return std::make_tuple(SIGSEGV, SIGBUS);
++    case Signal::AccessFault:
++#if defined(SIGBUS)
++        return std::make_tuple(SIGSEGV, SIGBUS);
++#else
++        return std::make_tuple(SIGSEGV, std::nullopt);
++#endif
+     case Signal::IllegalInstruction: return std::make_tuple(SIGILL, std::nullopt);
+     case Signal::Usr: return std::make_tuple(SIGUSR2, std::nullopt);
+     case Signal::FloatingPoint: return std::make_tuple(SIGFPE, std::nullopt);
+-    case Signal::Breakpoint: return std::make_tuple(SIGTRAP, std::nullopt);
++    case Signal::Breakpoint:
++#if defined(SIGTRAP)
++        return std::make_tuple(SIGTRAP, std::nullopt);
++#else
++        RELEASE_ASSERT_WITH_MESSAGE(false, "Breakpoint signal is unavailable on this platform");
++#endif
+ #if !OS(DARWIN)
+     case Signal::Abort: return std::make_tuple(SIGABRT, std::nullopt);
+ #endif
+@@ -422,9 +432,13 @@
+ {
+     switch (signal) {
+     case SIGSEGV: return Signal::AccessFault;
++#if defined(SIGBUS)
+     case SIGBUS: return Signal::AccessFault;
++#endif
+     case SIGFPE: return Signal::FloatingPoint;
++#if defined(SIGTRAP)
+     case SIGTRAP: return Signal::Breakpoint;
++#endif
+     case SIGILL: return Signal::IllegalInstruction;
+     case SIGUSR2: return Signal::Usr;
+ #if !OS(DARWIN)
+@@ -437,7 +451,11 @@
+ inline size_t NODELETE offsetForSystemSignal(int sig)
+ {
+     Signal signal = fromSystemSignal(sig);
++#if defined(SIGBUS)
+     return static_cast<size_t>(signal) + (sig == SIGBUS);
++#else
++    return static_cast<size_t>(signal);
++#endif
+ }
+ 
+ void activateSignalHandlersFor(Signal signal)
+@@ -520,7 +538,7 @@
+         return;
+     }
+ 
+-    unsigned oldActionIndex = static_cast<size_t>(signal) + (sig == SIGBUS);
++    unsigned oldActionIndex = offsetForSystemSignal(sig);
+     struct sigaction& oldAction = handlers.oldActions[oldActionIndex];
+     if (signal == Signal::Usr) {
+         if (oldAction.sa_sigaction)

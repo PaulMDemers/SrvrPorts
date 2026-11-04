@@ -1,0 +1,15 @@
+--- a/Source/JavaScriptCore/bytecode/Repatch.cpp
++++ b/Source/JavaScriptCore/bytecode/Repatch.cpp
+@@ -73,6 +73,7 @@
+ #include <wtf/ListDump.h>
+ #include <wtf/StringPrintStream.h>
+ 
++#if ENABLE(JIT)
+ namespace JSC {
+ 
+ static void linkSlowFor(VM& vm, CallLinkInfo& callLinkInfo)
+@@ -2238,3 +2239,4 @@
+ #endif
+ 
+ } // namespace JSC
++#endif // ENABLE(JIT)

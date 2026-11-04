@@ -1,0 +1,12 @@
+--- a/Source/JavaScriptCore/PlatformJSCOnly.cmake
++++ b/Source/JavaScriptCore/PlatformJSCOnly.cmake
+@@ -55,4 +55,9 @@
+     endif ()
+     set_property(SOURCE runtime/JSCBytecodeCacheVersion.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+         "SRVROS_JSC_BUILD_IDENTIFIER=\"${SRVROS_JSC_BUILD_IDENTIFIER}\"")
++    if (NOT EXISTS "${SRVROS_REPOSITORY_ROOT}/build/browser-libm/libsrvros-jsc-math.a")
++        message(FATAL_ERROR "SrvrOS JSC target math archive missing")
++    endif ()
++    list(APPEND JavaScriptCore_LIBRARIES
++        "${SRVROS_REPOSITORY_ROOT}/build/browser-libm/libsrvros-jsc-math.a")
+ endif ()

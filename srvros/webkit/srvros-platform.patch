@@ -1,0 +1,36 @@
+--- a/Source/cmake/WebKitCommon.cmake
++++ b/Source/cmake/WebKitCommon.cmake
+@@ -197,7 +197,10 @@
+     # -----------------------------------------------------------------------------
+     # Determine the operating system
+     # -----------------------------------------------------------------------------
+-    if (UNIX)
++    if (CMAKE_SYSTEM_NAME STREQUAL "SrvrOS")
++        set(WTF_OS_SRVROS 1)
++        set(WTF_OS_UNIX 1)
++    elseif (UNIX)
+         if (APPLE)
+             set(WTF_OS_MACOS 1)
+         elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
+--- a/Source/WTF/wtf/PlatformOS.h
++++ b/Source/WTF/wtf/PlatformOS.h
+@@ -115,6 +115,11 @@
+ #define WTF_OS_QNX 1
+ #endif
+ 
++/* OS(SRVROS) - SrvrOS, with an incomplete POSIX compatibility layer. */
++#if defined(__SRVROS__)
++#define WTF_OS_SRVROS 1
++#endif
++
+ /* OS(WINDOWS) - Any version of Windows */
+ #if defined(WIN32) || defined(_WIN32)
+ #define WTF_OS_WINDOWS 1
+@@ -143,6 +148,7 @@
+     || OS(LINUX)            \
+     || OS(NETBSD)           \
+     || OS(OPENBSD)          \
++    || OS(SRVROS)           \
+     || defined(unix)        \
+     || defined(__unix)      \
+     || defined(__unix__)

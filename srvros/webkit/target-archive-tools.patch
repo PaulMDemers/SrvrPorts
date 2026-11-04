@@ -1,0 +1,20 @@
+--- a/Source/cmake/OptionsJSCOnly.cmake
++++ b/Source/cmake/OptionsJSCOnly.cmake
+@@ -1,5 +1,17 @@
+ find_package(Threads REQUIRED)
+ 
++if (CMAKE_SYSTEM_NAME STREQUAL "SrvrOS")
++    # dlfcn entry points are in libsrvros; no separate target libdl exists.
++    set(CMAKE_DL_LIBS "")
++    # The host archive tools may produce Mach-O archives around ELF objects.
++    set(_srvros_zig "${SRVROS_REPOSITORY_ROOT}/build/tooling/zig/zig")
++    foreach (_language C CXX)
++        set(CMAKE_${_language}_ARCHIVE_CREATE "\"${_srvros_zig}\" ar qc <TARGET> <LINK_FLAGS> <OBJECTS>")
++        set(CMAKE_${_language}_ARCHIVE_APPEND "\"${_srvros_zig}\" ar q <TARGET> <LINK_FLAGS> <OBJECTS>")
++        set(CMAKE_${_language}_ARCHIVE_FINISH "\"${_srvros_zig}\" ranlib <TARGET>")
++    endforeach ()
++endif ()
++
+ if (MSVC)
+     include(OptionsMSVC)
+ else ()

@@ -1,0 +1,13 @@
+--- a/source/common/unicode/umachine.h
++++ b/source/common/unicode/umachine.h
+@@ -325,7 +325,9 @@
+  * @stable ICU 2.0
+  */
+ #if !defined(U_WCHAR_IS_UTF16) && !defined(U_WCHAR_IS_UTF32)
+-#   ifdef __STDC_ISO_10646__
++#   if defined(__SRVROS__) && (U_SIZEOF_WCHAR_T == 4)
++#       define U_WCHAR_IS_UTF32
++#   elif defined(__STDC_ISO_10646__)
+ #       if (U_SIZEOF_WCHAR_T==2)
+ #           define U_WCHAR_IS_UTF16
+ #       elif (U_SIZEOF_WCHAR_T==4)
