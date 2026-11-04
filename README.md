@@ -5,6 +5,8 @@ that will be brought up on srvros through the POSIX-compat layer.
 
 ## Upstream Source
 
+- `upstream/diffutils`: GNU Diffutils 3.12 release snapshot; see [port contract](srvros/diffutils/PORT.md).
+
 - `upstream/xz`: XZ Utils 5.8.4 release snapshot; see [port contract](srvros/xz/PORT.md).
 
 - `upstream/less`: less 710 release snapshot; see [port contract](srvros/less/PORT.md).
