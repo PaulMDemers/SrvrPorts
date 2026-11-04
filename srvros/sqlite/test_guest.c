@@ -41,6 +41,9 @@ int main(int argc, char **argv) {
     CHECK(srv_sqlite_open(&srv_sqlite_vfs, DB_PATH, &db.base, flags, 0) == SQLITE_OK);
     CHECK(srv_sqlite_open(&srv_sqlite_vfs, "./sqlite-vfs-test.db", &other.base, flags, 0) != SQLITE_OK);
     CHECK(srv_shell_fopen("./sqlite-vfs-test.db", "w") == 0);
+    CHECK(srv_shell_fopen("./sqlite-vfs-test.db-journal", "w") == 0);
+    CHECK(srv_shell_fopen("./SQLITE-VFS-TEST.DB-JOURNAL", "w") == 0);
+    CHECK(srv_shell_unlink("./sqlite-vfs-test.db-journal") == -1 && errno == EACCES);
     CHECK(srv_shell_unlink("./sqlite-vfs-test.db") == -1 && errno == EACCES);
     CHECK(srv_sqlite_open(&srv_sqlite_vfs, "./sqlite-vfs-test.db", &other.base,
                           SQLITE_OPEN_MAIN_JOURNAL | SQLITE_OPEN_READWRITE, 0) != SQLITE_OK);
@@ -50,6 +53,11 @@ int main(int argc, char **argv) {
     CHECK(posix_spawn(&child, SELF_PATH, 0, 0, args, 0) == 0);
     CHECK(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     CHECK(srv_sqlite_close(&db.base) == SQLITE_OK);
+    FILE *journal_open = srv_shell_fopen("./sqlite-vfs-test.db-journal", "w");
+    CHECK(journal_open != 0);
+    CHECK(srv_sqlite_open(&srv_sqlite_vfs, DB_PATH, &db.base, flags, 0) != SQLITE_OK);
+    CHECK(srv_shell_fclose(journal_open) == 0);
+    CHECK(unlink("./sqlite-vfs-test.db-journal") == 0);
 
     int temp_flags = SQLITE_OPEN_TEMP_DB | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_DELETEONCLOSE;
     CHECK(srv_sqlite_open(&srv_sqlite_vfs, 0, &tmp1.base, temp_flags, 0) == SQLITE_OK);

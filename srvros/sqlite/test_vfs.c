@@ -36,6 +36,14 @@ int main(void) {
     assert(srv_sqlite_open(&srv_sqlite_vfs, path, &duplicate.base, flags, NULL) != SQLITE_OK);
     assert(link(path, "alias.db") == 0);
     assert(srv_shell_fopen("alias.db", "w") == NULL);
+    assert(srv_shell_fopen("./test.db-journal", "w") == NULL);
+    assert(srv_shell_fopen("./TEST.DB-JOURNAL", "w") == NULL);
+    assert(srv_shell_unlink("./test.db-journal") == -1 && errno == EACCES);
+    FILE *journal = fopen("test.db-journal", "w");
+    assert(journal && fclose(journal) == 0 && link("test.db-journal", "journal-alias") == 0);
+    assert(srv_shell_fopen("journal-alias", "w") == NULL);
+    assert(srv_shell_unlink("journal-alias") == -1 && errno == EACCES);
+    assert(unlink("journal-alias") == 0 && unlink("test.db-journal") == 0);
     assert(srv_shell_unlink("alias.db") == -1 && errno == EACCES);
     assert(srv_sqlite_open(&srv_sqlite_vfs, "alias.db", &duplicate.base,
                            SQLITE_OPEN_MAIN_JOURNAL | SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK);
@@ -69,6 +77,10 @@ int main(void) {
         assert(strcmp(t1.path, t2.path));
         assert(srv_sqlite_close(&t1.base) == SQLITE_OK && srv_sqlite_close(&t2.base) == SQLITE_OK);
     }
+    FILE *journal_open = srv_shell_fopen("test.db-journal", "w");
+    assert(journal_open);
+    assert(srv_sqlite_open(&srv_sqlite_vfs, path, &db.base, flags, NULL) != SQLITE_OK);
+    assert(srv_shell_fclose(journal_open) == 0 && unlink("test.db-journal") == 0);
     FILE *f = srv_shell_fopen(path, "r");
     assert(f);
     assert(srv_sqlite_open(&srv_sqlite_vfs, path, &db.base, flags, NULL) != SQLITE_OK);

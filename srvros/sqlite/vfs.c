@@ -28,9 +28,70 @@ struct srv_sqlite_file {
 static FILE *shell_files[SHELL_FILES_MAX];
 static int shell_deferred[SHELL_FILES_MAX];
 static int deferred_fds[SHELL_FILES_MAX];
-static struct stat main_stat;
+static struct stat main_stat, journal_dir_stat;
+static char journal_path[SQLITEDEMO_PATH_MAX], journal_name[SQLITEDEMO_PATH_MAX];
+
+/* Resolve the journal's parent by inode, so ./, .. and directory aliases
+ * cannot bypass the guard. Non-ASCII names in that directory are refused:
+ * exFAT uses Unicode case folding that ASCII strcasecmp cannot reproduce. */
+static int journal_key(const char *db) {
+    char full[SQLITEDEMO_PATH_MAX], dir[SQLITEDEMO_PATH_MAX];
+    const char *slash;
+    int n;
+    if (db[0] == '/') n = snprintf(full, sizeof(full), "%s-journal", db);
+    else {
+        char cwd[SQLITEDEMO_PATH_MAX];
+        if (!getcwd(cwd, sizeof(cwd))) return 0;
+        n = snprintf(full, sizeof(full), "%s%s%s-journal", cwd,
+                     strcmp(cwd, "/") ? "/" : "", db);
+    }
+    if (n < 0 || n >= (int)sizeof(full)) return 0;
+    slash = strrchr(full, '/');
+    if (!slash || !slash[1]) return 0;
+    memcpy(journal_path, full, (size_t)n + 1);
+    memcpy(journal_name, slash + 1, strlen(slash + 1) + 1);
+    size_t length = (size_t)(slash - full);
+    if (!length) length = 1;
+    memcpy(dir, full, length); dir[length] = 0;
+    return stat(dir, &journal_dir_stat) == 0;
+}
+static int ascii_equal_or_nonascii(const char *a, const char *b) {
+    int equal = 1;
+    while (*a || *b) {
+        unsigned char ca = (unsigned char)*a, cb = (unsigned char)*b;
+        if (ca >= 128 || cb >= 128) return 1;
+        if (ca >= 'A' && ca <= 'Z') ca += 'a' - 'A';
+        if (cb >= 'A' && cb <= 'Z') cb += 'a' - 'A';
+        if (ca != cb) equal = 0;
+        if (*a) ++a;
+        if (*b) ++b;
+    }
+    return equal;
+}
 static int same_inode(const struct stat *a, const struct stat *b) {
     return a->st_dev == b->st_dev && a->st_ino == b->st_ino;
+}
+static int protected_inode(const struct stat *st) {
+    struct stat journal;
+    if (same_inode(st, &main_stat)) return 1;
+    if (stat(journal_path, &journal) == 0) return same_inode(st, &journal);
+    return errno != ENOENT;
+}
+static int protected_path(const char *path) {
+    struct stat st, parent;
+    char dir[SQLITEDEMO_PATH_MAX];
+    const char *slash = strrchr(path, '/');
+    if (stat(path, &st) == 0) {
+        if (protected_inode(&st)) return 1;
+    } else if (errno != ENOENT) return 1;
+    size_t length = slash ? (size_t)(slash - path) : 0;
+    if (length >= sizeof(dir)) return 1;
+    if (!slash) { dir[0] = '.'; dir[1] = 0; }
+    else if (!length) { dir[0] = '/'; dir[1] = 0; }
+    else { memcpy(dir, path, length); dir[length] = 0; }
+    if (stat(dir, &parent) != 0) return 1;
+    return same_inode(&parent, &journal_dir_stat) &&
+           ascii_equal_or_nonascii(slash ? slash + 1 : path, journal_name);
 }
 static int shell_has_inode(const struct stat *st) {
     for (int fd = 0; fd < 3; ++fd) {
@@ -66,25 +127,22 @@ FILE *srv_shell_fopen(const char *path, const char *mode) {
     if (i == SHELL_FILES_MAX) { errno = EMFILE; return NULL; }
     /* Check before fopen so a write mode cannot truncate the database. */
     if (active_main) {
-        int rc = stat(path, &st);
-        if ((rc == 0 && same_inode(&st, &main_stat)) || (rc != 0 && errno != ENOENT)) {
+        if (protected_path(path)) {
             errno = EACCES; return NULL;
         }
     }
     FILE *f = fopen(path, mode);
     if (!f) return NULL;
     shell_files[i] = f;
-    if (active_main && (fstat(fileno(f), &st) != 0 || same_inode(&st, &main_stat))) {
+    if (active_main && (fstat(fileno(f), &st) != 0 || protected_inode(&st))) {
         shell_deferred[i] = 1;
         errno = EACCES; return NULL;
     }
     return f;
 }
 int srv_shell_unlink(const char *path) {
-    struct stat st;
     if (active_main) {
-        int rc = stat(path, &st);
-        if ((rc == 0 && same_inode(&st, &main_stat)) || (rc != 0 && errno != ENOENT)) {
+        if (protected_path(path)) {
             errno = EACCES;
             return -1;
         }
@@ -95,7 +153,7 @@ int srv_shell_fclose(FILE *f) {
     for (int i = 0; i < SHELL_FILES_MAX; ++i) {
         if (shell_files[i] == f) {
             struct stat st;
-            if (active_main && (fstat(fileno(f), &st) != 0 || same_inode(&st, &main_stat))) {
+            if (active_main && (fstat(fileno(f), &st) != 0 || protected_inode(&st))) {
                 shell_deferred[i] = 1;
                 return 0;
             }
@@ -300,7 +358,14 @@ static int srv_sqlite_open(sqlite3_vfs *vfs, const char *name,
             close(fd);
             return SQLITE_BUSY;
         }
-        if (fstat(fd, &main_stat) != 0 || shell_has_inode(&main_stat)) {
+        struct stat journal_st;
+        if (fstat(fd, &main_stat) != 0 || shell_has_inode(&main_stat) || !journal_key(name)) {
+            close(fd);
+            return SQLITE_CANTOPEN;
+        }
+        int journal_rc = stat(journal_path, &journal_st);
+        if ((journal_rc == 0 && shell_has_inode(&journal_st)) ||
+            (journal_rc != 0 && errno != ENOENT)) {
             close(fd);
             return SQLITE_CANTOPEN;
         }

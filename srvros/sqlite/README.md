@@ -7,7 +7,11 @@ access. This is a cooperative contract: other programs must respect POSIX
 record locks and must not modify, unlink, or replace the database while open.
 The shell tracks its file streams to prevent closing a database alias from
 releasing the process-owned lock; opening the active database as a shell
-input or output file fails. Do not bypass this guard with other raw descriptors
+input or output file fails. Shell file helpers also reject the rollback journal
+by identity or by its name in the database directory, even before the journal
+exists. Journal-name matching ignores ASCII case; when either name contains
+non-ASCII characters, shell file operations in that directory are refused
+conservatively because exFAT uses Unicode case folding. Do not bypass this guard with other raw descriptors
 in applications embedding the VFS. The port is single-threaded.
 
 Read-only SQLite connections are supported, but the database file must still
