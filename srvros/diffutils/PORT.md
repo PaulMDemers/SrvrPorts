@@ -38,8 +38,11 @@ three PASS and the upstream expected large-subopt XFAIL. Guest input fixtures
 are separately labeled, without a full guest-suite claim. Actual Terminal,
 expert screenshot review, CLI and ports regressions pass in disposable QEMU.
 
-Draft gate: the later combined 256 KiB/8192-line/64 KiB-line changed fixture still
-needs its own two-boot run. Final current-head review and dependency-order merge
-remain pending. Partial stdout may remain on failure/cancellation; sampled
-mappings are not RSS/true peak. No shared libc/kernel change or fake capability.
+The changed fixture combining 256 KiB, 8192 lines and a 64 KiB line also passes
+both boots, exact references, host patch roundtrip and input preservation.
+Independent source/evidence review found no blocker within this profile.
+Qualification source is OS `5796a9cd`; later delivery notes and gitlinks change
+only documentation, with runtime hashes and source equivalence recorded by OS
+integration. Partial stdout may remain on failure/cancellation; sampled mappings
+are not RSS/true peak. No shared libc/kernel change or fake capability.
 No physical-device or user-study acceptance. Retain earlier failed receipts.
