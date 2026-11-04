@@ -14,7 +14,7 @@ safe leaf header labels (including `a/name` / `b/name`), counted hunks, zero-cou
 insertions/deletions, header-like deleted records, missing final newlines and
 multiple hunks. Explicit inputs must be existing regular text files; output must
 be a distinct, exclusively created new file. Status 0 means applied, 1 means
-unapplied hunks, and 2 means trouble. Existing empty source/output content works;
+unapplied hunks, and 2 means trouble. An empty existing source and empty newly produced output are supported;
 metadata creation/deletion is excluded. The profile is forward-only, zero fuzz,
 noninteractive, with no reverse, backup/reject files, in-place operation, other
 patch formats, Git/rename metadata or multiple file sections.
