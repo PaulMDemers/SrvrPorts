@@ -18,6 +18,8 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--previous-install', type=Path, help='reuse mtimes only for byte- and mode-identical installed headers')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(root / 'tools'))
+from browser_storage import StorageGuard
 out = root / 'build/browser-icu'
 port = root / 'ports/srvros/icu'
 sdk = root / 'build/sysroot/srvros'
@@ -27,10 +29,10 @@ source_archive = out / 'icu4c-79.1-sources.tgz'
 data_archive = out / 'icu4c-79.1-data-bin-l.zip'
 inputs = {source_archive: (28162455, '06fa63ecb521048f8082f12ad988f6b678d90cbd88aafce24cbc94902b191d99'),
           data_archive: (12863498, '72489fb316a60ae1c1da205866edd01b17e8fbf8354ad0615e6cc60f74e08811')}
-reserve = 1536 * 1024 * 1024
 out.mkdir(parents=True, exist_ok=True)
 run = Path(tempfile.mkdtemp(prefix='run-', dir=out))
 receipt = {'result': 'failed', 'scope': 'compile and link only; guest not run', 'commands': [], 'sha256': {}}
+storage = StorageGuard(run.resolve())
 
 def sha(path):
     h = hashlib.sha256()
@@ -40,8 +42,7 @@ def sha(path):
     return h.hexdigest()
 
 def space():
-    if shutil.disk_usage(out).free < reserve:
-        raise RuntimeError('less than 1.5 GiB free; build stopped')
+    storage.preflight()
 
 def safe_copy(src, dest):
     with open(src, 'rb') as incoming, open(dest, 'wb') as outgoing:
@@ -57,13 +58,13 @@ def command(name, args, cwd, env=None, timeout=3600, required=True):
     args = list(map(str, args)); space()
     with (run / (name + '.log')).open('wb') as log:
         log.write((json.dumps(args) + '\n').encode()); log.flush()
-        proc = subprocess.Popen(args, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        proc = subprocess.Popen(args, cwd=cwd, env=storage.environment(env), stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         start = time.monotonic(); reason = None
         try:
             while proc.poll() is None:
-                if shutil.disk_usage(out).free < reserve:
-                    reason = 'disk reserve reached'
-                elif time.monotonic() - start > timeout:
+                try: storage.preflight()
+                except RuntimeError as error: reason = str(error)
+                if not reason and time.monotonic() - start > timeout:
                     reason = 'timeout'
                 if reason:
                     os.killpg(proc.pid, signal.SIGTERM)
@@ -178,6 +179,7 @@ try:
         baseenv.pop(key, None)
     baseenv['ZIG_GLOBAL_CACHE_DIR'] = str(out / 'zig-global-cache')
     baseenv['ZIG_LOCAL_CACHE_DIR'] = str(out / 'zig-local-cache')
+    baseenv = storage.environment(baseenv)
     configure = source / 'configure'
     flags = ['--disable-shared', '--enable-static', '--disable-tests', '--disable-samples', '--disable-extras']
     command('host-configure', [configure, *flags, '--with-data-packaging=archive'], host, baseenv)
@@ -199,9 +201,9 @@ try:
     staged = run / 'sysroot'; (staged / 'include/unicode').mkdir(parents=True); (staged / 'lib').mkdir()
     for part in ('common', 'i18n'):
         for header in (source / part / 'unicode').glob('*.h'):
-            shutil.copyfile(header, staged / 'include/unicode' / header.name)
+            space(); shutil.copyfile(header, staged / 'include/unicode' / header.name)
     for name in ('libicuuc.a', 'libicui18n.a'):
-        shutil.copyfile(target / 'lib' / name, staged / 'lib' / name)
+        safe_copy(target / 'lib' / name, staged / 'lib' / name)
     command('data-archive', [zig, 'ar', 'rcs', staged / 'lib/libicudata.a', obj], run, env)
     (staged / 'share/licenses/icu').mkdir(parents=True)
     safe_copy(run / 'icu/LICENSE', staged / 'share/licenses/icu/LICENSE')
@@ -251,7 +253,7 @@ try:
                                                         'old_mtime_ns': before.st_mtime_ns,
                                                         'new_mtime_ns': current.st_mtime_ns})
     safe_copy(elf, out / 'icuprobe.elf')
-    paths = [*inputs, port / 'build.py', port / 'guest.cc', port / 'mh-srvros', port / 'srvros-wchar.patch',
+    paths = [*inputs, root / 'tools/browser_storage.py', port / 'build.py', port / 'guest.cc', port / 'mh-srvros', port / 'srvros-wchar.patch',
              root / 'ports/srvros/webkit/compiler.py', root / 'ports/srvros/webkit/cc', root / 'ports/srvros/webkit/cxx',
              sdk / 'lib/libsrvros.a', sdk / 'lib/crt0.o', sdk / 'lib/app.ld',
              runtime / 'libcxx-threaded.a', runtime / 'receipt.json', rtti_receipt, math_receipt, out / 'icuprobe.elf',
@@ -261,6 +263,8 @@ try:
 except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError, tarfile.TarError, zipfile.BadZipFile) as error:
     receipt['error'] = str(error)
 finally:
+    receipt['storage_minimum'] = storage.minimum
+    receipt['storage_snapshot'] = storage.snapshot
     text = json.dumps(receipt, indent=2) + '\n'
     (run / 'receipt.json').write_text(text)
     (out / 'receipt.json').write_text(text)
