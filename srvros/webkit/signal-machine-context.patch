@@ -1,0 +1,14 @@
+--- a/Source/JavaScriptCore/runtime/MachineContext.h
++++ b/Source/JavaScriptCore/runtime/MachineContext.h
+@@ -42,7 +42,10 @@
+ template<typename T = void*> T stackPointer(const PlatformRegisters&);
+ #if OS(SRVROS)
+ template<typename T = void*> inline T framePointer(const PlatformRegisters& regs) { return std::bit_cast<T>(static_cast<uintptr_t>(regs.snapshot.rbp)); }
+-inline std::optional<CodePtr<PlatformRegistersPCPtrTag>> instructionPointer(const PlatformRegisters& regs) { return CodePtr<PlatformRegistersPCPtrTag>(reinterpret_cast<void*>(regs.snapshot.rip)); }
++inline std::optional<CodePtr<PlatformRegistersPCPtrTag>> instructionPointer(const PlatformRegisters& regs)
++{
++    return std::optional<CodePtr<PlatformRegistersPCPtrTag>>(std::in_place, reinterpret_cast<void*>(regs.snapshot.rip));
++}
+ #endif
+ 
+ #if OS(WINDOWS) || HAVE(MACHINE_CONTEXT)
