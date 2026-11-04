@@ -1,0 +1,23 @@
+# bc 7.0.3 for SrvrOS
+
+Upstream release: https://github.com/gavinhoward/bc/releases/download/7.0.3/bc-7.0.3.tar.gz; SHA-256 `6e59d1154d167f8073a56de58a5476cc6213a7672abdf4197b5cc9599d56cd43`. The unmodified release snapshot, including its BSD-2-Clause license and notices, is in `ports/upstream/bc`. The executable is statically linked with SrvrOS libc. `ports/srvros/bc/build.mk` prepares and builds `build/userspace/bc.elf`; preparation verifies a digest of the complete release file contents, copies them to `build/ports/bc-srvros`, applies local changes there and runs upstream's string generator with the host compiler. Python 3 and a host C compiler are required. No generated file is written upstream.
+
+The initial profile builds bc alone, without dc, command history, line editing libraries, NLS, extra math extensions, or a library ABI. Core arithmetic, scale, square root, bases, variables, functions, loops, file arguments and standard input are intended; support is bounded by the SrvrOS libc and filesystem. The ordinary upstream math library remains available via `-l`. Selected unchanged upstream regression inputs and expected outputs are `tests/bc/add.txt` / `add_results.txt` and `tests/bc/sqrt.txt` / `sqrt_results.txt`; these are only selected coverage, not a claim of the full suite. Errors, including syntax and arithmetic errors and output failures, should produce a nonzero status in noninteractive use. Interactive error recovery and signal behavior require guest verification.
+
+The target SDK lacks POSIX signal jump APIs. Upstream requests `sigsetjmp(..., 0)` for ordinary exception unwinding; the prepared copy uses `setjmp` and `longjmp` for that purpose. Its signal handler only records signal and status, then returns, allowing the SrvrOS dispatcher to restore its mask and dispatch state. Existing unlocked boundaries handle deferred exceptions, and a periodic `sched_yield` at an interpreter instruction boundary dispatches pending signals for bytecode loops. Computed goto is disabled to ensure that checkpoint runs. No nonlocal jump or stdio operation occurs in the handler. A single expensive arithmetic operation has no bounded signal response until it returns to an instruction boundary; this is not general asynchronous cancellation. Interactive interrupt messages differ from upstream because the handler does not write directly. Signal delivery, interrupted reads, repeated recovery, and termination depend on the target dispatcher and must be verified on a guest; host compilation alone does not prove them.
+
+`bc-output-test.elf` checks a real failed output descriptor and `bc-signal-test.elf` exercises same-process syntax and arithmetic error recovery, repeated SIGINT recovery during blocked input and busy bytecode loops, a subsequent calculation, and SIGTERM during a loop. These are separate guest probes, not part of the installed utility. They print `bc-output-error: PASS` and `bc-signal: PASS`, respectively, on success. Their result must be recorded from an actual guest run.
+
+Acceptance on the matched OS: seven unchanged upstream arithmetic fixtures
+(with a separate scale=20 prelude), core/file/stdin/pipeline calculations, exact
+decimal report save/reopen across two boots, malformed programs, division by
+zero, missing files and actual stdout failure pass. The signal probe passes
+same-process syntax/math error recovery, two blocked-read and two busy-loop
+SIGINT cycles with valid calculations afterward, and busy-loop SIGTERM exit.
+The target's QUIT status maps to exit zero; termination is checked by bounded
+process exit. Guest fsck/offline allocation pass; independent fsck.exfat is
+unavailable. Clean CLI rebuilds match SHA256
+`62c0737baafa6b569bd917303600e5aee341c5f09b24776fce49615e5fa6af61`.
+Raw matched-OS receipts are in `build/bc-smoke/20261103-221517-z7lm_s73/`
+and `build/review/bc/`. No full upstream-suite, physical-device, whole-image
+reproducibility or asynchronous-signal acceptance is claimed.
