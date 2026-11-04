@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Build pinned ICU for SrvrOS in a fresh, bounded cross-build directory."""
+import argparse
 import hashlib
 import json
 import os
@@ -13,6 +14,9 @@ import tempfile
 import time
 import zipfile
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--previous-install', type=Path, help='reuse mtimes only for byte- and mode-identical installed headers')
+args = parser.parse_args()
 root = Path(__file__).resolve().parents[3]
 out = root / 'build/browser-icu'
 port = root / 'ports/srvros/icu'
@@ -218,6 +222,34 @@ try:
         raise RuntimeError('existing ICU install present; move it aside before publishing a fresh install')
     space()
     shutil.copytree(staged, install, copy_function=safe_copy)
+    receipt['preserved_header_mtimes'] = []
+    if args.previous_install:
+        previous = args.previous_install.resolve()
+        if previous == install.resolve() or not previous.is_dir():
+            raise RuntimeError('previous install must be a distinct existing directory')
+        for header in sorted((install / 'include').rglob('*')):
+            if not header.is_file():
+                continue
+            relative = header.relative_to(install)
+            old = previous / relative
+            if old.is_symlink() or not old.is_file():
+                continue
+            before = old.stat()
+            if (before.st_mode & 0o7777) != (header.stat().st_mode & 0o7777):
+                continue
+            old_hash = sha(old)
+            if old_hash != sha(header):
+                continue
+            # Timestamp-sensitive headers must be rebuilt from their own metadata.
+            if b'__TIMESTAMP__' in header.read_bytes():
+                continue
+            os.utime(header, ns=(header.stat().st_atime_ns, before.st_mtime_ns))
+            current = header.stat()
+            if current.st_mtime_ns != before.st_mtime_ns or sha(header) != old_hash:
+                raise RuntimeError('header metadata preservation failed: ' + str(relative))
+            receipt['preserved_header_mtimes'].append({'path': str(relative), 'sha256': old_hash,
+                                                        'old_mtime_ns': before.st_mtime_ns,
+                                                        'new_mtime_ns': current.st_mtime_ns})
     safe_copy(elf, out / 'icuprobe.elf')
     paths = [*inputs, port / 'build.py', port / 'guest.cc', port / 'mh-srvros', port / 'srvros-wchar.patch',
              root / 'ports/srvros/webkit/compiler.py', root / 'ports/srvros/webkit/cc', root / 'ports/srvros/webkit/cxx',

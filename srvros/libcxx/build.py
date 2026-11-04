@@ -21,7 +21,7 @@ if subprocess.run([str(zig), 'version'], capture_output=True, text=True, timeout
 z = root / 'build/tooling/zig/lib'
 p = root / 'ports/srvros/libcxx'
 flags = ['-target','x86_64-freestanding-none','-std=c++23','-ffreestanding','-fno-exceptions','-fno-rtti','-fno-sanitize=undefined','-fno-stack-protector','-fno-stack-check','-fno-pic','-ffunction-sections','-fdata-sections','-mno-red-zone','-O2','-nostdinc++','-include',str(p/'config.h'),'-I',str(z/'libcxx/include'),'-I',str(z/'libcxx/src/include'),'-I',str(z/'libcxxabi/include'),'-I',str(z/'include'),'-isystem',str(sysroot/'include')]
-units = [z/'libcxx/src'/n for n in ['thread.cpp','mutex.cpp','mutex_destructor.cpp','condition_variable.cpp','condition_variable_destructor.cpp','call_once.cpp','chrono.cpp','future.cpp']]+[p/'fail_fast.cc']
+units = [z/'libcxx/src'/n for n in ['thread.cpp','mutex.cpp','mutex_destructor.cpp','condition_variable.cpp','condition_variable_destructor.cpp','call_once.cpp','chrono.cpp','future.cpp']]+[p/'terminate.cc',p/'fail_fast.cc']
 commands=[]
 def run(name, cmd):
     cmd=list(map(str, cmd)); start=time.monotonic()

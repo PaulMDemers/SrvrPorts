@@ -69,7 +69,7 @@ try:
     cmd('profile-check',[port.parent/'webkit/cxx','-D_LIBCPP_HAS_FILESYSTEM=1','-c',profile,'-o',run/'profile.o'])
     receipt['libcxx_profile']={'filesystem':1,'localization':0,'threads':1,'pthread':1}
     flags=['-D_LIBCPP_HAS_FILESYSTEM=1','-ffunction-sections','-fdata-sections','-I',src/'include','-I',root/'build/tooling/zig/lib/libcxxabi/include','-c']
-    units=[run/'filesystem'/n for n in ('directory_entry.cpp','directory_iterator.cpp','filesystem_clock.cpp','filesystem_error.cpp','operations.cpp','path.cpp')]+[src/n for n in ('string.cpp','system_error.cpp','error_category.cpp','memory.cpp','stdexcept.cpp')]
+    units=[run/'filesystem'/n for n in ('directory_entry.cpp','directory_iterator.cpp','filesystem_clock.cpp','filesystem_error.cpp','operations.cpp','path.cpp')]+[src/n for n in ('string.cpp','system_error.cpp','error_category.cpp','memory.cpp','stdexcept.cpp','algorithm.cpp','hash.cpp')]
     objects=[]
     for source in units:
         obj=run/(source.stem+'.o');cmd('compile-'+source.stem,[port.parent/'webkit/cxx',*flags,source,'-o',obj]);objects.append(obj)
