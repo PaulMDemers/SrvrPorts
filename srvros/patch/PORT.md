@@ -1,66 +1,68 @@
-# GNU Patch 2.8.1: bounded port draft
+# GNU Patch 2.8.1: bounded single-file port
 
-`ports/upstream/patch` contains the pristine official
+`upstream/patch` is the pristine official
 [patch-2.8.1.tar.xz](https://ftp.gnu.org/gnu/patch/patch-2.8.1.tar.xz),
 SHA-256 `3240c7959c5347c8ed347e3c4201c0337bf4240d5cf09d68889e58eeaba30e17`.
-The release signature was directly verified using PGPy against the published
-primary fingerprint `259B 3792 B3D6 D319 212C C4DC D5BF 9FEB 0313 653A`.
-PGPy does not check self-signatures or revocation; the result is a direct
-cryptographic signature check, not a web-of-trust or revocation assessment.
-The parent source record reports all 578 archive files compared with the pristine
-tree. GNU GPL and bundled gnulib licenses remain in the upstream release.
+All 578 regular archive files match; GNU GPL and bundled gnulib licenses remain.
+The release signature was directly verified using PGPy against primary fingerprint
+`259B 3792 B3D6 D319 212C C4DC D5BF 9FEB 0313 653A`. This checks the direct
+cryptographic signature; PGPy does not establish trust or revocation status.
 
-The proposed command is `patch -i PATCH -o NEW_OUTPUT SOURCE`, plus `--help`
-and `--version`. It admits one unified file section, safe leaf header labels
-(including `a/name` and `b/name`), one or more counted hunks and regular file
-inputs. It intends to support zero-count insertions and deletions, removed lines
-beginning `--- `, missing-final-newline markers and multiple hunks using GNU
-Patch's parser and application engine. Status 0 is applied, 1 is unapplied
-hunks, 2 is trouble. The output is required to be a new, exclusively created
-file; source and patch are not modified. Interactive, reverse, fuzz, backups,
-reject files, in-place operation, other patch formats, metadata operations,
-file creation/deletion and multi-file patches are outside the profile.
+Use `patch -i PATCH -o NEW_OUTPUT SOURCE`, or `--help` / `--version`.
+The genuine GNU parser and application engine support one unified file section,
+safe leaf header labels (including `a/name` / `b/name`), counted hunks, zero-count
+insertions/deletions, header-like deleted records, missing final newlines and
+multiple hunks. Explicit inputs must be existing regular text files; output must
+be a distinct, exclusively created new file. Status 0 means applied, 1 means
+unapplied hunks, and 2 means trouble. Existing empty source/output content works;
+metadata creation/deletion is excluded. The profile is forward-only, zero fuzz,
+noninteractive, with no reverse, backup/reject files, in-place operation, other
+patch formats, Git/rename metadata or multiple file sections.
 
-The admission layer reads each original through a regular-file descriptor into
-an unlinked, open temporary snapshot; GNU receives duplicate descriptors for
-those snapshots, so later path changes cannot swap the validated input. Source
-and output bounds are 256 KiB, 8192 physical lines and 64 KiB per physical line
-including newline. Patch input is limited to 1 MiB, 32768 physical records and
-128 KiB per record; numeric hunk ranges and counts are bounded before upstream
-allocates hunk arrays. NUL bytes are rejected. Output is counted as GNU writes
-it, and on failure or interruption the adapter intends to remove only its own
-partial output. The unlinked snapshots depend on the filesystem's open-unlink
-behavior; that behavior and the cleanup identity checks require guest tests.
-If output identity cannot be verified, the created path may remain for inspection.
-If unlinking a newly created snapshot fails, its path is reported and may remain.
-Cleanup uses a stat-then-unlink check, which is not atomic: concurrent or
-adversarial replacement in the output namespace is outside this profile.
+Actual source/output limits are 256 KiB, 8192 physical lines and 64 KiB per line,
+including newline. Patch limits are 1 MiB, 32768 physical records and 128 KiB per
+record; numeric hunk ranges/counts are bounded before GNU allocates hunk arrays.
+NUL is refused. Original files are read into unlinked open temporary snapshots;
+GNU uses duplicated snapshot descriptors and snapshot metadata. Later path
+removal/replacement/growth cannot change the admitted bytes. Output is counted
+as GNU writes it. On ordinary failure or caught cancellation, cleanup removes
+its own partial output. Unverifiable ownership or failed snapshot/output cleanup
+reports the possibly remaining path. Stat-then-unlink is not atomic: adversarial
+namespace replacement and power loss are outside this guarantee.
 
-`prepare.py` applies changes only to a generated copy. The signal callback is
-intended to set a flag and return through the SDK dispatcher; cleanup and signal
-termination occur in normal control flow. The separate diagnostic variant is
-planned to use a matching-progress marker, allocation-failure injection, and a
-post-snapshot output-write fault. These hooks are absent from production.
+Adaptations apply only to a generated upstream copy. SDK C-locale primitives are
+real; no shared libc/kernel change or fake FILE introspection is introduced.
+Unused closeout/close-stream/fpending/fseterr objects are omitted; the adapter
+checks stream-close errors directly. Unsupported symlink-loop failures map to
+`EOPNOTSUPP` where the SDK has no `ELOOP`; this is not general symlink safety.
+Configure did not recognize `--disable-nls`; there is no `ENABLE_NLS` setting and
+the bounded command uses the C locale. Signal callbacks only flag pending work;
+normal flow checks progress, cleans up and terminates. Diagnostic controls and
+markers are absent from production.
 
-The first SDK cross-configured production and diagnostic ELF targets link.
-The configuration and selected gnulib sources are recorded in this port. The
-unused `fpending`, `fseterr`, `close-stream` and `closeout` objects are omitted:
-the bounded adapter checks stream close errors directly and does not use the
-upstream closeout path. The local compatibility layer uses the SDK's C-locale
-wide-character primitives; unsupported symlink-loop failures are reported as
-`EOPNOTSUPP` where the SDK has no `ELOOP`. This does not establish general
-symlink safety. Configure did not recognize `--disable-nls`; Patch has no
-`ENABLE_NLS` setting in its generated configuration, and the bounded program
-uses the C locale. No target behavior is established by linking.
+The bounded qualification passes on clean OS `60baca64`, runtime port `de7adcea`,
+after reconciliation with OS main `72fde837`. Kernel, initramfs, base disk,
+production/diagnostic/probe ELFs and complete archive/disk inventories were
+frozen and readback-verified outside build before seven fresh sequential
+512 MiB guests. Evidence covers exact GNU references and refusal statuses,
+simultaneous source caps, allocation-failure/recovery, snapshot removal/growth
+races, real post-admission EFBIG write failure, repeated SIGINT/SIGTERM after
+matching and positive output progress, cleanup, reboot persistence and fsck.
+Fresh diff interchange, actual Terminal expert walkthrough, all 498 CLI commands
+and full ports regression pass. The shipped miniport example builds a separate
+patched copy and verifies the original source remains unchanged.
 
-The first disposable 512 MiB target boot passes basic replacement, zero-count
-insertion, an exact header-like deleted record, missing final newlines, a
-relative source named --version, existing-output/legacy refusals, failed-hunk
-status 1 with output removed, preserved inputs and clean fsck. This is an initial
-dirty-source proof with adapter hashes, not final reproducibility or full-profile
-acceptance. Source setup failures were retained and corrected without changing
-shared runtime contracts.
+Two clean GNU core/gnulib/diagnostic rebuilds match against the same SDK objects;
+those objects remain byte-identical. Selected native upstream tests report two
+PASS and one expected XFAIL outside this single-file profile. This is not a full
+upstream guest-suite, independent SDK/image reproducibility, total-process RAM
+or RSS/true-peak bound, traced in-syscall cancellation/latency, representative-user
+study or physical-device acceptance. Earlier setup/artifact/identity failures
+remain recorded as failures. The missing old initramfs member comparison was
+resolved by fresh qualification on the retained final payload, not an exemption.
 
-**Not accepted.** Signal and output failure behavior, snapshot and filesystem
-semantics, memory use, GNU patch interchange and reproducible builds remain
-unverified. No physical-device acceptance is implied.
+[Port PR12](https://github.com/PaulMDemers/SrvrPorts/pull/12) and dependent
+[OS PR370](https://github.com/PaulMDemers/SrvrOS/pull/370) record ordered delivery.
+Portable evidence is published with the OS documentation; raw proof, frozen
+payload and source archives survive outside build cleanup. No further feature
+is required for this bounded profile.
