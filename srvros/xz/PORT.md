@@ -94,4 +94,3 @@ regenerate), configure with `--disable-shared --disable-nls --disable-threads
 with `TESTS='test_check test_stream_flags test_block_header
 test_stream_buffer_encode test_stream_buffer_decode test_memlimit'`.
 The two threaded subcases intentionally skip in this configuration.
-
