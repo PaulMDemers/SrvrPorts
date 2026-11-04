@@ -5,6 +5,8 @@ that will be brought up on srvros through the POSIX-compat layer.
 
 ## Upstream Source
 
+- `upstream/bc`: bc 7.0.3 release snapshot; see [port contract](srvros/bc/PORT.md).
+
 - `upstream/jq`: jq 1.8.2 release snapshot; see [port contract](srvros/jq/PORT.md).
 - `upstream/awk`: One True Awk, pinned to `5739fd79bcfc75ba7526773d0cf634521f8aca3c`; see [port contract](srvros/awk/PORT.md).
 - `upstream/uacpi`: MIT AML interpreter, pinned to 7.0.0; offline/isolated probes, Q35 runtime fixtures and separately gated native runtime (see [port contract](srvros/uacpi/PORT.md)).
