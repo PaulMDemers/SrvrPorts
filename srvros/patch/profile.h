@@ -10,6 +10,7 @@ int srv_patch_output_fd(void);
 void srv_patch_source_stat(struct stat *st);
 void srv_patch_set_output(FILE *stream);
 void srv_patch_output_progress(FILE *stream, size_t written);
+void srv_patch_output_error(FILE *stream, int error_number);
 void srv_patch_output_bytes(FILE *stream, const void *bytes, size_t length);
 void srv_patch_success(void);
 void srv_patch_cleanup(void);

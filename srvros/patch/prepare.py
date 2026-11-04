@@ -127,7 +127,7 @@ srv_patch_signal_checkpoint (void)
 void
 init_signals (void)''')
 edit('src/util.c', '''  Fflush (stream);\n  if (fclose (stream) < 0)''', '''  srv_patch_signal_checkpoint ();\n  Fflush (stream);\n  int result = fclose (stream);\n  srv_patch_signal_checkpoint ();\n  if (result < 0)''')
-edit('src/util.c', '''  if (fflush (stream) < 0)''', '''  srv_patch_signal_checkpoint ();\n  int result = fflush (stream);\n  srv_patch_signal_checkpoint ();\n  if (result < 0)''')
+edit('src/util.c', '''  if (fflush (stream) < 0)''', '''  srv_patch_signal_checkpoint ();\n  errno = 0;\n  int result = fflush (stream);\n  int result_errno = errno;\n  srv_patch_signal_checkpoint ();\n  errno = result_errno;\n  if (result < 0) srv_patch_output_error (stream, result_errno);\n  if (result < 0)''')
 edit('src/util.c', '''  int nout = vfprintf (stream, format, args);''', '''  srv_patch_signal_checkpoint ();\n  int nout = vfprintf (stream, format, args);''')
 edit('src/util.c', '''  va_end (args);\n  if (nout < 0)''', '''  va_end (args);\n  srv_patch_signal_checkpoint ();\n  if (nout < 0)''')
 edit('src/util.c','''  if (fputc (c, stream) < 0)''','''  unsigned char byte = (unsigned char)c;
@@ -144,9 +144,13 @@ edit('src/util.c','''  if (fputs (s, stream) < 0)''','''  srv_patch_signal_check
 edit('src/util.c','''  if (fwrite (ptr, size, nitems, stream) < nitems)''','''  srv_patch_signal_checkpoint ();
   if (size && nitems > SIZE_MAX / size) fatal ("output size overflow");
   srv_patch_output_bytes (stream, ptr, size * nitems);
+  errno = 0;
   size_t result = fwrite (ptr, size, nitems, stream);
+  int result_errno = errno;
   srv_patch_signal_checkpoint ();
+  errno = result_errno;
   if (result == nitems) srv_patch_output_progress (stream, size * result);
+  if (result < nitems) srv_patch_output_error (stream, result_errno);
   if (result < nitems)''')
 edit('src/util.c','''  ssize_t r = read (filedes, buf, MIN (nbyte, IO_BUFSIZE));''','''  srv_patch_signal_checkpoint ();
   ssize_t r = read (filedes, buf, MIN (nbyte, IO_BUFSIZE));

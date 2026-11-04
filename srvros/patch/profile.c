@@ -53,6 +53,18 @@ void srv_patch_output_progress(FILE *stream, size_t written) {
  (void)stream; (void)written;
 #endif
 }
+void srv_patch_output_error(FILE *stream, int error_number) {
+#ifdef SRV_PATCH_DIAGNOSTIC
+ if (stream == output_stream && error_number == EFBIG) {
+  extern void srv_patch_efbig_diagnostic(void);
+  int saved_errno = errno;
+  srv_patch_efbig_diagnostic();
+  errno = saved_errno;
+ }
+#else
+ (void)stream; (void)error_number;
+#endif
+}
 void srv_patch_output_bytes(FILE *stream, const void *data, size_t n) {
  if (stream != output_stream) return;
  const unsigned char *p=data;

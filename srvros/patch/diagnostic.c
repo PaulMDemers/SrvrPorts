@@ -47,3 +47,11 @@ void srv_patch_progress_diagnostic(FILE *stream) {
  srv_patch_signal_checkpoint();
  if (n!=1) exit(2);
 }
+
+void srv_patch_efbig_diagnostic(void) {
+ static int sent;
+ if (!sent) {
+  static const char message[]="PATCH_OUTPUT_EFBIG\n";
+  sent=1; (void)write(2,message,sizeof(message)-1);
+ }
+}
