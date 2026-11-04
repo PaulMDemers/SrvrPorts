@@ -3739,7 +3739,10 @@ int uv_spawn(uv_loop_t *loop, uv_process_t *process, const uv_process_options_t 
     error = posix_spawnp(&pid, options->file, &actions, 0, options->args, options->env);
     if (cwd_changed) {
         int spawn_error = error;
-        (void)chdir(saved_cwd);
+        /* Preserve the spawn result: a live child still requires its handle.
+         * Restoration remains best effort, including on fortified hosts. */
+        int restore_status = chdir(saved_cwd);
+        (void)restore_status;
         error = spawn_error;
     }
     if (error == 0) {
