@@ -1,0 +1,11 @@
+--- a/Source/WTF/wtf/PlatformRegisters.h
++++ b/Source/WTF/wtf/PlatformRegisters.h
+@@ -39,6 +39,8 @@
+ typedef ucontext_t mcontext_t;
+ #elif OS(QNX)
+ #include <ucontext.h>
++#elif OS(SRVROS)
++// No signal machine-context support is advertised for SrvrOS.
+ #else
+ #include <sys/ucontext.h>
+ #endif

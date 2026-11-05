@@ -1,0 +1,26 @@
+--- a/Source/WTF/wtf/StackBounds.cpp
++++ b/Source/WTF/wtf/StackBounds.cpp
+@@ -89,6 +89,23 @@
+     void* bound = tls->__stackaddr;
+ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+     void* origin = static_cast<char*>(bound) + tls->__stacksize;
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
++    return StackBounds { origin, bound };
++}
++
++#elif OS(SRVROS)
++
++StackBounds StackBounds::currentThreadStackBoundsInternal()
++{
++    pthread_attr_t attributes;
++    RELEASE_ASSERT(!pthread_getattr_np(pthread_self(), &attributes));
++    void* bound = nullptr;
++    size_t stackSize = 0;
++    int result = pthread_attr_getstack(&attributes, &bound, &stackSize);
++    int destroyed = pthread_attr_destroy(&attributes);
++    RELEASE_ASSERT(!result && !destroyed && bound && stackSize);
++WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
++    void* origin = static_cast<char*>(bound) + stackSize;
+ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+     return StackBounds { origin, bound };
+ }

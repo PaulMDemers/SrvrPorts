@@ -1,0 +1,17 @@
+--- a/Source/WTF/wtf/posix/FileHandlePOSIX.cpp
++++ b/Source/WTF/wtf/posix/FileHandlePOSIX.cpp
+@@ -181,7 +181,13 @@
+ #endif
+     }
+ 
+-    auto fileData = MmapSpan<uint8_t>::mmap(nullptr, size, pageProtection, MAP_FILE | (mapMode == MappedFileMode::Shared ? MAP_SHARED : MAP_PRIVATE), platformHandle());
++#if OS(SRVROS)
++    // File-backed mappings are selected by the descriptor; shared may fail.
++    int mappingFlags = (mapMode == MappedFileMode::Shared ? MAP_SHARED : MAP_PRIVATE);
++#else
++    int mappingFlags = MAP_FILE | (mapMode == MappedFileMode::Shared ? MAP_SHARED : MAP_PRIVATE);
++#endif
++    auto fileData = MmapSpan<uint8_t>::mmap(nullptr, size, pageProtection, mappingFlags, platformHandle());
+     if (!fileData)
+         return { };
+ 
