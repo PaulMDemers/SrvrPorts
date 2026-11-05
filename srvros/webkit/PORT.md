@@ -75,9 +75,11 @@ source fingerprint.
 Normal public signal dispatch remains disabled. PR334 supplies an explicitly
 gated experimental kernel/libc contract and a separate WTF overlay selected by
 `--experimental-signal-context`. Its reviewed native context/nested-wait probe
-passes, but this does not establish interpreter or garbage-collector acceptance.
-The first freshly linked actual-WTF guest exits134 after the main-context marker;
-the remaining utility, GC-root and JavaScript cases have not run.
+passes. The first actual-WTF134 and later GC-control134 remain preserved failures.
+The current matched experimental candidate now passes actual WTF/footprint, GC
+control/GP/FX/red-zone and `jsc -e 'print(42)'` with exit0 in the bounded
+single-CPU Q35/+rdrand profile. General ABI, SMP, physical and browser acceptance
+remain separate.
 
 `signal-retirement.patch` corrects an independently reproduced WTF lifetime
 race: a resumed worker can reach its TLS destructor before the controller
@@ -86,9 +88,9 @@ the matching controller publishes Idle, without consuming its acknowledgement.
 The controller updates the suspend count before its final Idle publication.
 Invalid identity, pending INFO, ticket changes and invalid phases remain fatal;
 clock checks and a finite yield budget bound the drain attempts. The INFO handler
-and class headers are unchanged. This candidate is host-tested and awaiting
-owner review and matched target/guest verification; it is not attribution of the
-original134 or a JavaScript pass.
+and class headers are unchanged. Source review, matched target links and the
+actual WTF startup/retirement guest pass; the later strict-entropy work also
+passes the GC and JavaScript smoke. The original failure remains historical.
 
 `test_signal_retirement.py --source PATH --output DIR --sanitizers` extracts the
 actual patched TLS destructor and resume method. Its35 cases pass in strict and
@@ -122,3 +124,12 @@ matching the existing thread adapter. The SDK's `srvros/sys.h` has no C++ guards
 this companion fixes the observed final-link failure without modifying that
 qualified SDK. The native entropy fixture uses the same wrapper. Host checks use
 the actual retained SDK native headers to catch linkage regressions.
+
+At tested Ports d99565f/OS6b5ebaf7, actual-SDK native/WTF strict and ASan/UBSan
+checks pass. Exact review binds757 files,839 functions/3460 named relocation
+targets and all four ISO/CPU configurations. Normal absent/positive entropy,
+experimental native contexts, and all eight full-suite cases pass. Quota fallback
+messages remain observed; no quota/gate change is included. Raw results survive
+outside build output, receipt SHA256
+`ce0ce2147666002e4deacb1b13b9a5e6a0f8183da54f13a2107b528ebe8aa6be`.
+Current-main reconciliation/integration review remain before draft delivery.
