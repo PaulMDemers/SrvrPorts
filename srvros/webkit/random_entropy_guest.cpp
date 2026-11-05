@@ -1,5 +1,7 @@
 /* Provider contract check; byte statistics do not establish entropy quality. */
+extern "C" {
 #include <srvros/sys.h>
+}
 #include <wtf/srvros/RandomContract.h>
 #include <stdint.h>
 #include <stdio.h>

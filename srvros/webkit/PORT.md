@@ -116,3 +116,9 @@ records both hashes and source/ports revisions, and rechecks after compilation.
 New SDK builds export the shared header normally. Legacy flags0 and POSIX
 `getrandom` behavior are unchanged; cryptographic callers must request the named
 native strict mode and fail closed on refusal.
+
+`random-native-linkage.patch` wraps the retained native SDK include in C linkage,
+matching the existing thread adapter. The SDK's `srvros/sys.h` has no C++ guards;
+this companion fixes the observed final-link failure without modifying that
+qualified SDK. The native entropy fixture uses the same wrapper. Host checks use
+the actual retained SDK native headers to catch linkage regressions.
