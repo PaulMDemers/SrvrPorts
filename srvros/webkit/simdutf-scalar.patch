@@ -1,0 +1,12 @@
+--- a/Source/WTF/wtf/SIMDUTF.cpp
++++ b/Source/WTF/wtf/SIMDUTF.cpp
+@@ -43,6 +43,9 @@
+ #if OS(SRVROS)
+ // The target toolchain cannot compile this optional AVX-512 implementation.
+ #define SIMDUTF_IMPLEMENTATION_ICELAKE 0
++// The kernel does not yet preserve AVX state; keep only the scalar backend.
++#define SIMDUTF_IMPLEMENTATION_HASWELL 0
++#define SIMDUTF_IMPLEMENTATION_WESTMERE 0
+ #endif
+ 
+ #include "simdutf/simdutf_impl.cpp.h"

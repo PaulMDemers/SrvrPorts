@@ -1,0 +1,12 @@
+--- a/Source/WTF/wtf/posix/FileHandlePOSIX.cpp
++++ b/Source/WTF/wtf/posix/FileHandlePOSIX.cpp
+@@ -29,7 +29,9 @@
+ #include "config.h"
+ #include <wtf/FileHandle.h>
+ 
++#if USE(FILE_LOCK)
+ #include <sys/file.h>
++#endif
+ #include <sys/stat.h>
+ #include <unistd.h>
+ #include <wtf/CheckedArithmetic.h>

@@ -1,0 +1,12 @@
+--- a/Source/WTF/wtf/AvailableMemory.cpp
++++ b/Source/WTF/wtf/AvailableMemory.cpp
+@@ -154,6 +154,9 @@
+     if (!sysinfo(&info))
+         return info.totalram * info.mem_unit;
+     return availableMemoryGuess;
++#elif OS(SRVROS)
++    // The SDK does not yet expose a physical-memory query.
++    return availableMemoryGuess;
+ #elif OS(UNIX) || OS(HAIKU)
+     long pages = sysconf(_SC_PHYS_PAGES);
+     long pageSize = sysconf(_SC_PAGE_SIZE);

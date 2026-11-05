@@ -1,0 +1,89 @@
+--- a/Source/WTF/wtf/RandomDevice.cpp
++++ b/Source/WTF/wtf/RandomDevice.cpp
+@@ -29,7 +29,12 @@
+ 
+ #include <stdlib.h>
+ 
+-#if !OS(DARWIN) && !OS(FUCHSIA) && OS(UNIX)
++#if OS(SRVROS)
++#include <srvros/sys.h>
++#include <wtf/srvros/RandomContract.h>
++#endif
++
++#if !OS(SRVROS) && !OS(DARWIN) && !OS(FUCHSIA) && OS(UNIX)
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <unistd.h>
+@@ -51,7 +56,7 @@
+ 
+ namespace WTF {
+ 
+-#if !OS(DARWIN) && !OS(FUCHSIA) && OS(UNIX)
++#if !OS(SRVROS) && !OS(DARWIN) && !OS(FUCHSIA) && OS(UNIX)
+ NEVER_INLINE NO_RETURN_DUE_TO_CRASH static void crashUnableToOpenURandom()
+ {
+     CRASH();
+@@ -63,7 +68,9 @@
+ }
+ #endif
+ 
+-#if !OS(DARWIN) && !OS(FUCHSIA) && !OS(WINDOWS)
++#if OS(SRVROS)
++RandomDevice::RandomDevice() = default;
++#elif !OS(DARWIN) && !OS(FUCHSIA) && !OS(WINDOWS)
+ RandomDevice::RandomDevice()
+ {
+     int ret = 0;
+@@ -76,7 +83,12 @@
+ }
+ #endif
+ 
+-#if !OS(DARWIN) && !OS(FUCHSIA) && !OS(WINDOWS)
++#if OS(SRVROS)
++RandomDevice::~RandomDevice()
++{
++    RELEASE_ASSERT(m_fd == -1);
++}
++#elif !OS(DARWIN) && !OS(FUCHSIA) && !OS(WINDOWS)
+ RandomDevice::~RandomDevice()
+ {
+     close(m_fd);
+@@ -91,6 +103,19 @@
+     RELEASE_ASSERT(!CCRandomGenerateBytes(buffer.data(), buffer.size()));
+ #elif OS(FUCHSIA)
+     zx_cprng_draw(buffer.data(), buffer.size());
++#elif OS(SRVROS)
++    size_t offset = 0;
++    while (offset < buffer.size()) {
++        // Strict native mode never substitutes clock/PID mixing. Any refusal,
++        // including an older kernel, is fatal; positive short reads progress.
++        size_t remaining = buffer.size() - offset;
++        size_t requested = remaining < 256 ? remaining : 256;
++        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
++        long received = srv_random(buffer.data() + offset, requested, SRV_RANDOM_REQUIRE_ENTROPY);
++        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
++        RELEASE_ASSERT(received > 0 && static_cast<size_t>(received) <= requested);
++        offset += static_cast<size_t>(received);
++    }
+ #elif OS(UNIX)
+     ssize_t amountRead = 0;
+     while (static_cast<size_t>(amountRead) < buffer.size()) {
+--- /dev/null
++++ b/Source/WTF/wtf/srvros/RandomContract.h
+@@ -0,0 +1,16 @@
++#ifndef SRVROS_RANDOM_H
++#define SRVROS_RANDOM_H
++
++#include <srvros/syscall_numbers.h>
++
++/* SYS_RANDOM flags0 retains its historical best-effort, non-cryptographic
++ * fallback. This opt-in mode returns only bytes from the existing virtio-RNG
++ * pool or successful RDRAND instructions, without waiting or software fallback.
++ * A positive short result describes only the written prefix. If no provider
++ * bytes are available, return SRV_RANDOM_UNAVAILABLE without writing anything.
++ * Zero length succeeds without a provider. Invalid flags/ranges return -1.
++ * Older kernels reject this flag with -1; callers must fail closed. */
++#define SRV_RANDOM_REQUIRE_ENTROPY (1ULL << 0)
++#define SRV_RANDOM_UNAVAILABLE SRV_ERR_AGAIN
++
++#endif

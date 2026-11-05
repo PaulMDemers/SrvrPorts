@@ -1,0 +1,25 @@
+--- a/Source/WTF/wtf/FileSystem.cpp
++++ b/Source/WTF/wtf/FileSystem.cpp
+@@ -59,7 +59,10 @@
+ 
+ static std::filesystem::path toStdFileSystemPath(StringView path)
+ {
+-#if HAVE(MISSING_U8STRING)
++#if OS(SRVROS)
++    // SrvrOS uses UTF-8 byte paths; libc++ has no localization conversions.
++    return { path.utf8().data() };
++#elif HAVE(MISSING_U8STRING)
+ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+     return std::filesystem::u8path(path.utf8().data());
+ ALLOW_DEPRECATED_DECLARATIONS_END
+@@ -70,7 +73,9 @@
+ 
+ static String fromStdFileSystemPath(const std::filesystem::path& path)
+ {
+-#if HAVE(MISSING_U8STRING)
++#if OS(SRVROS)
++    return String::fromUTF8(unsafeSpan(path.native().c_str()));
++#elif HAVE(MISSING_U8STRING)
+     // FIXME: This uses u8string so how can it be correct inside HAVE(MISSING_U8STRING)?
+     return String::fromUTF8(unsafeSpan(path.u8string().c_str()));
+ #else

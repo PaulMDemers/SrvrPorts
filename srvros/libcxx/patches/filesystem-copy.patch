@@ -1,0 +1,27 @@
+--- a/filesystem/operations.cpp
++++ b/filesystem/operations.cpp
+@@ -364,6 +364,24 @@
+ 
+   ec.clear();
+   return true;
++}
++#elif defined(__SRVROS__) && !_LIBCPP_HAS_LOCALIZATION
++bool copy_file_impl(FileDescriptor& read_fd, FileDescriptor& write_fd, error_code& ec) {
++  char buffer[8192];
++  for (;;) {
++    ssize_t n;
++    do { n = ::read(read_fd.fd, buffer, sizeof(buffer)); } while (n < 0 && errno == EINTR);
++    if (n < 0) { ec = capture_errno(); return false; }
++    if (!n) { ec.clear(); return true; }
++    ssize_t done = 0;
++    while (done < n) {
++      ssize_t written;
++      do { written = ::write(write_fd.fd, buffer + done, static_cast<size_t>(n - done)); } while (written < 0 && errno == EINTR);
++      if (written < 0) { ec = capture_errno(); return false; }
++      if (!written) { ec = make_error_code(errc::io_error); return false; }
++      done += written;
++    }
++  }
+ }
+ #elif defined(_LIBCPP_FILESYSTEM_USE_FSTREAM)
+ bool copy_file_impl(FileDescriptor& read_fd, FileDescriptor& write_fd, error_code& ec) {

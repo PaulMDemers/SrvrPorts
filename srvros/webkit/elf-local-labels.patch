@@ -1,0 +1,10 @@
+--- a/Source/WTF/wtf/InlineASM.h
++++ b/Source/WTF/wtf/InlineASM.h
+@@ -90,6 +90,7 @@
+     || OS(HURD)                \
+     || OS(NETBSD)              \
+     || OS(QNX)                 \
++    || OS(SRVROS)              \
+     || OS(WINDOWS)
+     // GNU as-compatible syntax.
+ #define LOCAL_LABEL_STRING(name) ".L" #name

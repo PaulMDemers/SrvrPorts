@@ -1,0 +1,15 @@
+--- a/Source/cmake/OptionsCommon.cmake
++++ b/Source/cmake/OptionsCommon.cmake
+@@ -361,7 +361,11 @@
+     endif ()
+ 
+     # Check which filesystem implementation is available if any
+-    if (STD_FILESYSTEM_IS_AVAILABLE)
++    if (CMAKE_SYSTEM_NAME STREQUAL "SrvrOS")
++        # An existing header does not imply a usable linked implementation.
++        SET_AND_EXPOSE_TO_BUILD(HAVE_STD_FILESYSTEM ${STD_FILESYSTEM_IS_AVAILABLE})
++        SET_AND_EXPOSE_TO_BUILD(HAVE_STD_EXPERIMENTAL_FILESYSTEM ${STD_EXPERIMENTAL_FILESYSTEM_IS_AVAILABLE})
++    elseif (STD_FILESYSTEM_IS_AVAILABLE)
+         SET_AND_EXPOSE_TO_BUILD(HAVE_STD_FILESYSTEM TRUE)
+     elseif (STD_EXPERIMENTAL_FILESYSTEM_IS_AVAILABLE)
+         SET_AND_EXPOSE_TO_BUILD(HAVE_STD_EXPERIMENTAL_FILESYSTEM TRUE)

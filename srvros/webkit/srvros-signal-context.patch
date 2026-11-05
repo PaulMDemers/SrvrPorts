@@ -1,0 +1,314 @@
+--- a/Source/WTF/wtf/PlatformRegisters.h
++++ b/Source/WTF/wtf/PlatformRegisters.h
+@@ -40,7 +40,7 @@
+ #elif OS(QNX)
+ #include <ucontext.h>
+ #elif OS(SRVROS)
+-// No signal machine-context support is advertised for SrvrOS.
++#include <ucontext.h>
+ #else
+ #include <sys/ucontext.h>
+ #endif
+@@ -73,6 +73,13 @@
+ #elif OS(WINDOWS)
+ 
+ using PlatformRegisters = CONTEXT;
++
++#elif OS(SRVROS)
++
++struct PlatformRegisters {
++    void* stackPointer;
++    signal_context_snapshot snapshot;
++};
+ 
+ #elif HAVE(MACHINE_CONTEXT)
+ 
+--- a/Source/WTF/wtf/Threading.h
++++ b/Source/WTF/wtf/Threading.h
+@@ -61,6 +61,10 @@
+ #include <signal.h>
+ #endif
+ 
++#if OS(SRVROS)
++#include <semaphore.h>
++#endif
++
+ #if OS(WINDOWS)
+ #include <array>
+ #endif
+@@ -328,6 +332,10 @@
+ 
+ #if USE(PTHREADS) && !OS(DARWIN)
+     static void signalHandlerSuspendResume(int, siginfo_t*, void* ucontext);
++#if OS(SRVROS)
++    void initializeSrvrOSSignalState();
++    void waitSrvrOSSignalAck(unsigned phase, uint64_t ticket);
++#endif
+ #endif
+ 
+ #if HAVE(QOS_CLASSES)
+@@ -407,6 +415,14 @@
+ #endif
+     PlatformRegisters* m_platformRegisters { nullptr };
+     unsigned m_suspendCount { 0 };
++#if OS(SRVROS)
++    std::atomic<uint64_t> m_srvTicket { 0 };
++    std::atomic<uint64_t> m_srvAckTicket { 0 };
++    std::atomic<unsigned> m_srvPhase { 0 };
++    uint64_t m_srvTid { 0 };
++    sem_t m_srvAck { };
++    bool m_srvInitialized { false };
++#endif
+ #endif
+ 
+ #if OS(WINDOWS)
+--- a/Source/WTF/wtf/Threading.cpp
++++ b/Source/WTF/wtf/Threading.cpp
+@@ -206,6 +206,9 @@
+ 
+ void Thread::initializeInThread()
+ {
++#if OS(SRVROS)
++    initializeSrvrOSSignalState();
++#endif
+     if (m_stack.isEmpty())
+         m_stack = StackBounds::currentThreadStackBounds();
+     m_savedLastStackTop = stack().origin();
+--- a/Source/WTF/wtf/posix/ThreadingPOSIX.cpp
++++ b/Source/WTF/wtf/posix/ThreadingPOSIX.cpp
+@@ -44,6 +44,13 @@
+ #include <wtf/StdLibExtras.h>
+ #include <wtf/ThreadingPrimitives.h>
+ #include <wtf/WTFConfig.h>
++#if OS(SRVROS)
++extern "C" {
++#include <srvros/sys.h>
++}
++#include <ucontext.h>
++#include <limits.h>
++#endif
+ 
+ #if OS(HAIKU)
+ #include <OS.h>
+@@ -97,7 +104,51 @@
+ 
+ namespace WTF {
+ 
++#if OS(SRVROS)
++static thread_local Thread* srvCurrentThread;
++enum : unsigned { srvIdle, srvRequested, srvSuspended, srvResume, srvRunning };
++static_assert(std::atomic<unsigned>::is_always_lock_free);
++static_assert(std::atomic<uint64_t>::is_always_lock_free);
++static void srvFatal() { _exit(128 + SIGABRT); __builtin_trap(); }
++
++Thread::~Thread()
++{
++    if (m_srvInitialized && (m_srvPhase.load(std::memory_order_acquire) != srvIdle || sem_destroy(&m_srvAck)))
++        srvFatal();
++}
++
++void Thread::initializeSrvrOSSignalState()
++{
++    long tid = srv_thread_self();
++    if (tid <= 0 || srvCurrentThread || sem_init(&m_srvAck, 0, 0))
++        srvFatal();
++    m_srvTid = static_cast<uint64_t>(tid);
++    m_srvInitialized = true;
++    srvCurrentThread = this;
++}
++
++void Thread::waitSrvrOSSignalAck(unsigned phase, uint64_t ticket)
++{
++    long start = srv_monotonic_us();
++    if (start < 0 || start > LONG_MAX - 10000000)
++        srvFatal();
++    for (;;) {
++        if (!sem_trywait(&m_srvAck)) {
++            if (m_srvPhase.load(std::memory_order_acquire) != phase || m_srvAckTicket.load(std::memory_order_acquire) != ticket)
++                srvFatal();
++            return;
++        }
++        if (errno != EAGAIN)
++            srvFatal();
++        long now = srv_monotonic_us();
++        if (now < start || now >= start + 10000000)
++            srvFatal();
++        Thread::yield();
++    }
++}
++#else
+ Thread::~Thread() = default;
++#endif
+ 
+ #if !OS(DARWIN)
+ class Semaphore final {
+@@ -132,6 +183,49 @@
+ 
+ static std::atomic<Thread*> targetThread { nullptr };
+ 
++#if OS(SRVROS)
++void Thread::signalHandlerSuspendResume(int signal, siginfo_t* info, void* opaque)
++{
++    int savedErrno = errno;
++    Thread* thread = srvCurrentThread;
++    long tid = srv_thread_self();
++    if (!thread || !info || !opaque || signal != SIGUSR1 || tid <= 0 || info->__srvros_valid != 3 || info->__srvros_target_tid != static_cast<uint64_t>(tid) || thread->m_srvTid != static_cast<uint64_t>(tid))
++        srvFatal();
++    unsigned phase = thread->m_srvPhase.load(std::memory_order_acquire);
++    if (phase == srvResume || phase == srvSuspended || phase == srvIdle || phase == srvRunning) {
++        errno = savedErrno;
++        return;
++    }
++    if (phase != srvRequested)
++        srvFatal();
++    uint64_t ticket = thread->m_srvTicket.load(std::memory_order_acquire);
++    auto* context = static_cast<ucontext_t*>(opaque);
++    const auto& snapshot = context->uc_mcontext.__srvros_snapshot;
++    if (!ticket || snapshot.size != sizeof(snapshot) || snapshot.version != SIGNAL_CONTEXT_VERSION || !thread->m_stack.contains(reinterpret_cast<void*>(snapshot.rsp)))
++        srvFatal();
++    PlatformRegisters registers { reinterpret_cast<void*>(snapshot.rsp), snapshot };
++    thread->m_platformRegisters = &registers;
++    thread->m_srvAckTicket.store(ticket, std::memory_order_relaxed);
++    thread->m_srvPhase.store(srvSuspended, std::memory_order_release);
++    if (sem_post(&thread->m_srvAck))
++        srvFatal();
++    sigset_t mask;
++    if (sigfillset(&mask) || sigdelset(&mask, SIGUSR1))
++        srvFatal();
++    while (thread->m_srvPhase.load(std::memory_order_acquire) != srvResume) {
++        if (sigsuspend(&mask) != -1 || errno != EINTR)
++            srvFatal();
++    }
++    if (thread->m_srvTicket.load(std::memory_order_acquire) != ticket)
++        srvFatal();
++    thread->m_platformRegisters = nullptr;
++    thread->m_srvAckTicket.store(ticket, std::memory_order_relaxed);
++    thread->m_srvPhase.store(srvRunning, std::memory_order_release);
++    errno = savedErrno;
++    if (sem_post(&thread->m_srvAck))
++        srvFatal();
++}
++#else
+ void Thread::signalHandlerSuspendResume(int, siginfo_t*, void* ucontext)
+ {
+     // Touching a global variable atomic types from signal handlers is allowed.
+@@ -190,6 +284,7 @@
+     globalSemaphoreForSuspendResume->post();
+ }
+ 
++#endif // OS(SRVROS)
+ #endif // !OS(DARWIN)
+ 
+ void Thread::initializePlatformThreading()
+@@ -207,7 +302,12 @@
+     g_wtfConfig.isThreadSuspendResumeSignalConfigured = true;
+ 
+ #if !OS(DARWIN)
++#if OS(SRVROS)
++    if (g_wtfConfig.sigThreadSuspendResume != SIGUSR1)
++        srvFatal();
++#else
+     globalSemaphoreForSuspendResume.construct(0);
++#endif
+ 
+     // Signal handlers are process global configuration.
+     // Intentionally block sigThreadSuspendResume in the handler.
+@@ -218,7 +318,11 @@
+         sigaddset(&action.sa_mask, signal);
+ 
+         action.sa_sigaction = &signalHandlerSuspendResume;
++#if OS(SRVROS)
++        action.sa_flags = SA_SIGINFO;
++#else
+         action.sa_flags = SA_RESTART | SA_SIGINFO;
++#endif
+ 
+         // Theoretically, this can have race conditions but currently, there is no way to deal with it,
+         // plus, we do not expect that this initialization is executed concurrently with the other
+@@ -580,6 +684,23 @@
+     if (result != KERN_SUCCESS)
+         return makeUnexpected(result);
+     return { };
++#elif OS(SRVROS)
++    if (!m_suspendCount) {
++        if (!m_srvInitialized || !m_srvTid || m_srvPhase.load(std::memory_order_acquire) != srvIdle)
++            srvFatal();
++        uint64_t ticket = m_srvTicket.load(std::memory_order_relaxed);
++        if (ticket == UINT64_MAX)
++            srvFatal();
++        m_srvTicket.store(++ticket, std::memory_order_relaxed);
++        m_srvPhase.store(srvRequested, std::memory_order_release);
++        if (pthread_kill(m_handle, SIGUSR1))
++            srvFatal();
++        waitSrvrOSSignalAck(srvSuspended, ticket);
++        if (!m_platformRegisters)
++            srvFatal();
++    }
++    ++m_suspendCount;
++    return { };
+ #else
+     if (!m_suspendCount) {
+         targetThread.store(this);
+@@ -606,6 +727,20 @@
+ {
+ #if OS(DARWIN)
+     thread_resume(m_platformThread);
++#elif OS(SRVROS)
++    if (!m_suspendCount)
++        srvFatal();
++    if (m_suspendCount == 1) {
++        uint64_t ticket = m_srvTicket.load(std::memory_order_acquire);
++        if (!ticket || m_srvPhase.load(std::memory_order_acquire) != srvSuspended)
++            srvFatal();
++        m_srvPhase.store(srvResume, std::memory_order_release);
++        if (pthread_kill(m_handle, SIGUSR1))
++            srvFatal();
++        waitSrvrOSSignalAck(srvRunning, ticket);
++        m_srvPhase.store(srvIdle, std::memory_order_release);
++    }
++    --m_suspendCount;
+ #else
+     if (m_suspendCount == 1) {
+         // When allowing sigThreadSuspendResume interrupt in the signal handler by sigsuspend and SigThreadSuspendResume is actually issued,
+@@ -713,6 +848,17 @@
+     ASSERT(thread);
+ 
+     if (thread->m_isDestroyedOnce) {
++#if OS(SRVROS)
++        // Keep INFO blocked through native exit before releasing the TLS ref.
++        sigset_t blocked, pending;
++        if (sigemptyset(&blocked) || sigaddset(&blocked, SIGUSR1)
++            || pthread_sigmask(SIG_BLOCK, &blocked, nullptr)
++            || srvCurrentThread != thread
++            || thread->m_srvPhase.load(std::memory_order_acquire) != srvIdle
++            || sigpending(&pending) || sigismember(&pending, SIGUSR1) != 0)
++            srvFatal();
++        srvCurrentThread = nullptr;
++#endif
+         thread->didExit();
+         thread->deref();
+         return;
+--- a/Source/JavaScriptCore/runtime/MachineContext.h
++++ b/Source/JavaScriptCore/runtime/MachineContext.h
+@@ -40,6 +40,10 @@
+ namespace MachineContext {
+ 
+ template<typename T = void*> T stackPointer(const PlatformRegisters&);
++#if OS(SRVROS)
++template<typename T = void*> inline T framePointer(const PlatformRegisters& regs) { return std::bit_cast<T>(static_cast<uintptr_t>(regs.snapshot.rbp)); }
++inline std::optional<CodePtr<PlatformRegistersPCPtrTag>> instructionPointer(const PlatformRegisters& regs) { return CodePtr<PlatformRegistersPCPtrTag>(reinterpret_cast<void*>(regs.snapshot.rip)); }
++#endif
+ 
+ #if OS(WINDOWS) || HAVE(MACHINE_CONTEXT)
+ template<typename T = void*> T framePointer(const PlatformRegisters&);
+--- a/Source/WTF/wtf/PlatformHave.h
++++ b/Source/WTF/wtf/PlatformHave.h
+@@ -434,7 +434,7 @@
+ #define HAVE_URL_FORMATTING 1
+ #endif
+ 
+-#if !OS(WINDOWS) && !OS(QNX)
++#if !OS(WINDOWS) && !OS(QNX) && !OS(SRVROS)
+ #define HAVE_STACK_BOUNDS_FOR_NEW_THREAD 1
+ #endif
+ 
