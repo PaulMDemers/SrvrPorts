@@ -96,3 +96,23 @@ ASan/UBSan profiles; `--expect-old-failure` confirms the original source rejects
 both valid posted/consumed-acknowledgement schedules. Optional `--baseline PATH`
 requires the INFO handler to remain byte-identical. These deterministic host
 schedules supplement the required real guest run.
+
+`random-entropy.patch` replaces `/dev/urandom` access on SrvrOS with the native
+`srv_random` strict-entropy flag. It accepts only positive bounded results,
+advances on short reads, and aborts on unavailable providers, old-kernel refusal,
+zero progress or invalid overreturns. It makes no fallback to legacy flags0.
+The retained RandomDevice class layout is unchanged and its SrvrOS constructor
+and destructor perform no file I/O. Provider qualification remains the kernel's
+responsibility; passing a QEMU test does not accept physical entropy sources.
+
+The authoritative ABI header is SrvrOS `shared/include/srvros/random.h`. The patch
+carries an exact copy as `wtf/srvros/RandomContract.h` so previously qualified
+SDK/libc++/ICU artifacts can keep their existing attribution; that retained SDK
+does not contain the new header. To update it, run
+`python3 ports/srvros/webkit/update_random_contract.py shared/include/srvros/random.h`
+from the OS checkout. Never edit the copied definitions independently. The JSC
+builder compares applied and authoritative bytes before every qualifying build,
+records both hashes and source/ports revisions, and rechecks after compilation.
+New SDK builds export the shared header normally. Legacy flags0 and POSIX
+`getrandom` behavior are unchanged; cryptographic callers must request the named
+native strict mode and fail closed on refusal.
