@@ -132,4 +132,56 @@ experimental native contexts, and all eight full-suite cases pass. Quota fallbac
 messages remain observed; no quota/gate change is included. Raw results survive
 outside build output, receipt SHA256
 `ce0ce2147666002e4deacb1b13b9a5e6a0f8183da54f13a2107b528ebe8aa6be`.
-Current-main reconciliation/integration review remain before draft delivery.
+That historical checkpoint preceded the integrated qualification below.
+
+
+## Fresh integrated qualification — November 4, 2026
+
+Actual Ports main `72f3d6fa` is reconciled at `af1421b`, preserving GNU port
+sources and the required unified-diff whitespace attributes. Paired OS
+`0a3f5981` incorporates actual main `d10a4e10`. A fresh SDK exports the native
+entropy header normally; the generated WTF copy and C-linkage companion still
+undergo the required parity/provenance checks. Earlier retained-SDK statements
+above describe their historical builds.
+
+Threaded libc++, RTTI, math, ICU79.1 and filesystem builds pass against the fresh
+SDK. Normal runtime17 and filesystem2 guest cases pass, including the two
+intentional134 controls. Fresh no-JIT JSC and four fixtures build and link with
+JIT/WebAssembly/remote inspector/sampling profiler disabled. Exact review binds
+1,136 identities,1,488 functions and5,633 named relocation targets, with zero
+mismatches/unbound targets, and checks all four prepared guest configurations.
+
+Four guests pass in26.702s: normal entropy absent/positive, native contexts/
+nested waits, and the eight-case actual WTF/utility-footprint/GC/JavaScript
+suite. Actual `jsc -e 'print(42)'` prints42 and exits0; every guest stops and all
+owned groups retire. Quota fallback messages remain visible without changing
+quota behavior. The paired OS repository's
+`docs/assets/evidence/pr334-integrated-smoke` preserves portable synthetic logs,
+receipts and original/published hashes. Normal production signal capabilities
+stay disabled; no physical/SMP/general ABI/full-browser acceptance is claimed.
+
+
+## Latest-main kernel qualification — November 4, 2026
+
+The later actual-main update `f11ce344` adds read-only cache diagnostics, an
+AP-probe-only boot branch and exFAT conditional line-layout fixes. It changes
+no shared/userspace SDK, signal/process/scheduler or port implementation. The
+conflict-free merge and evidence record produce clean `a7f71411` / Ports
+`af1421b`. The new cache/context tests, actual dispatcher strict/ASan/UBSan
+checks, focused lifecycle/stream/scope/loader checks and both kernel builds pass.
+
+An exact audit verifies715 SDK, dependency, JSC and fixture input/output
+identities, including the original patched-source fingerprint, with no changed
+bytes. The fresh JSC build at0a3f5981 is retained with its original attribution.
+New normal and experimental kernels are respectively SHA256
+`da470d92d4ae3921405f6fb14c40c39a76efc47213f994552d8b89328e3ccee2`
+and `796fe4092b514c0066b178315d7d5dddddf4b23bd81ba30bd83a0254a368964d`.
+
+Four newly prepared and exact-reviewed guests pass in28.022s on those kernels:
+normal absent/positive entropy, native contexts/nested waits, and all eight
+actual WTF/footprint/GC/JavaScript cases. The retained JSC prints42 and exits0.
+All owned guests stop and groups retire. Exact review again binds1,136
+identities,1,488 retained functions and5,633 named relocation targets with zero
+mismatches/unbound. Original A–E records remain separate from this later-kernel
+qualification in the portable evidence collection. Production signal capability
+and quota behavior are unchanged; no physical/SMP/full-browser claim is added.
