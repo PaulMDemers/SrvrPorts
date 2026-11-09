@@ -2,6 +2,7 @@
 #include "battery_bounded_policy.h"
 #include "battery_startup_timing.h"
 #include "battery_transfer_diagnostic.h"
+#include "battery_protocol_diagnostic.h"
 /* Bounded battery/AC diagnostic. Full runtime, linked separately from the
  * snapshot probe and the desktop. CPU0 lifecycle owner and one EC/AML worker. */
 #include "battery_platform.h"
@@ -169,6 +170,54 @@ static uint64_t irq_save(void){uint64_t f;__asm__ volatile("pushfq; popq %0; cli
 static void irq_restore(uint64_t f){if(f&(1ull<<9))__asm__ volatile("sti":::"memory");}
 #endif
 static struct battery_transfer_diagnostic transfer_failure;
+static struct battery_protocol_diagnostic first_protocol_failure;
+static void protocol_failure(unsigned kind,bool begun,int result,const struct ec_smbus_event *event) {
+    uint64_t f=irq_save();
+    if(first_protocol_failure.valid){irq_restore(f);return;}
+    struct battery_protocol_diagnostic *d=&first_protocol_failure;
+    *d=(struct battery_protocol_diagnostic){.valid=true,.kind=kind,.begun=begun,.result=result,
+        .observed_us=timer_monotonic_us(),.flags=f,.current=scheduler_current_thread_id(),
+        .expected=runtime.worker.identity,.lease=runtime.lease,.io=scheduler_io_active(),
+        .busy=scheduler_io_busy(),.poisoned=runtime.transport.poisoned,
+        .ec_phase=runtime.transport.phase,.ec_error=runtime.transport.error,
+        .generation=runtime.sampler.sample.generation,.completed_us=runtime.sampler.sample.completed_us,
+        .sample_error=runtime.sampler.error,.sample_index=runtime.sampler.index,
+        .sample_polls=runtime.sampler.polls,.active=runtime.sampler.active,.waiting=runtime.sampler.waiting,
+        .sample=runtime.sampler.failure};
+    if(event) {
+        d->bus=event->fault;d->bus_phase=event->phase;d->bus_pending=event->pending;
+        d->bus_failed=event->failed;d->ack_attempted=event->ack_attempted;d->acknowledged=event->acknowledged;
+    } else if(kind==BATTERY_PROTOCOL_SAMPLE || kind==BATTERY_PROTOCOL_FRESHNESS) {
+        d->bus=runtime.sampler.transaction.fault;d->bus_phase=runtime.sampler.transaction.phase;
+        d->bus_pending=runtime.sampler.transaction.pending;d->bus_failed=runtime.sampler.transaction.failed;
+    }
+    irq_restore(f);
+}
+static void protocol_failure_report(const char *snapshot,uint64_t epoch) {
+    const struct battery_protocol_diagnostic *d=&first_protocol_failure;
+    console_printf("battery-protocol: version=1 snapshot=%s snapshot_us=%u epoch=%u captured=%u kind=%u\n",
+        snapshot,timer_monotonic_us(),epoch,(uint64_t)d->valid,(uint64_t)d->kind);
+    if(!d->valid)return;
+    console_printf("battery-protocol-context: at_us=%u if=%u current=%u expected=%u lease=%u io=%u busy=%u begun=%u result=%d ec_phase=%u ec_error=%u poison=%u\n",
+        d->observed_us,(uint64_t)!!(d->flags&(1ull<<9)),d->current,d->expected,(uint64_t)d->lease,
+        (uint64_t)d->io,(uint64_t)d->busy,(uint64_t)d->begun,(int64_t)d->result,
+        (uint64_t)d->ec_phase,(uint64_t)d->ec_error,(uint64_t)d->poisoned);
+    const struct sbs_failure *s=&d->sample;
+    console_printf("battery-protocol-sample: valid=%u time_valid=%u at_us=%u previous_us=%u max_gap_us=%u started_us=%u reason=%u polls=%u index=%u active=%u waiting=%u current=%u\n",
+        (uint64_t)s->valid,(uint64_t)s->time_valid,s->at_us,s->previous_poll_us,s->max_poll_gap_us,s->started_us,
+        (uint64_t)s->reason,(uint64_t)s->polls,(uint64_t)s->index,(uint64_t)s->active,(uint64_t)s->waiting,(uint64_t)s->current);
+    console_printf("battery-protocol-state: generation=%u completed_us=%u error=%u index=%u polls=%u active=%u waiting=%u bus_phase=%u pending=%u failed=%u ack_attempted=%u acknowledged=%u\n",
+        d->generation,d->completed_us,(uint64_t)d->sample_error,(uint64_t)d->sample_index,(uint64_t)d->sample_polls,
+        (uint64_t)d->active,(uint64_t)d->waiting,(uint64_t)d->bus_phase,(uint64_t)d->bus_pending,(uint64_t)d->bus_failed,
+        (uint64_t)d->ack_attempted,(uint64_t)d->acknowledged);
+    const struct ec_smbus_fault *b=&d->bus;
+    console_printf("battery-protocol-bus: valid=%u at_us=%u started_us=%u previous_us=%u max_gap_us=%u reason=%u phase=%u pending=%u status=%u value_valid=%u value=%u\n",
+        (uint64_t)b->valid,b->at_us,b->started_us,b->previous_poll_us,b->max_poll_gap_us,(uint64_t)b->reason,
+        (uint64_t)b->phase,(uint64_t)b->pending,(uint64_t)b->status,(uint64_t)b->value_valid,(uint64_t)b->value);
+    console_printf("battery-protocol-bus-ec: phase=%u failed_phase=%u error=%u poison=%u polls=%u status=%u started_us=%u last_us=%u timeout_us=%u\n",
+        (uint64_t)b->ec_phase,(uint64_t)b->ec_failed_phase,(uint64_t)b->ec_error,(uint64_t)b->ec_poisoned,
+        (uint64_t)b->ec_polls,(uint64_t)b->ec_status,b->ec_started_us,b->ec_last_us,b->ec_timeout_us);
+}
 static void transfer_failure_report(void) {
     const struct battery_transfer_diagnostic *d=&transfer_failure;
     if(!d->valid)return;
@@ -287,6 +336,7 @@ static __attribute__((noreturn)) void unsafe(const char *reason) {
     sci_report("fault");
     startup_report();
     transfer_failure_report();
+    protocol_failure_report("fault",owner==OWNER_SERVICE?service.cache.value.epoch:0);
     if(auto_return && !reset)
         console_printf("battery-reset: BLOCKED workspace=%u io=%u; live storage retained\n",(uint64_t)mounted,(uint64_t)io);
     console_printf("battery: progress setup=%s setup_elapsed_us=%u worker=%u completed=%u in_flight=%u\n",
@@ -881,6 +931,7 @@ static void smbus_query_work(void) {
     for(unsigned polls=1;begun&&!result;polls++) {
         result=ec_smbus_event_poll(&event,timer_monotonic_us());if(!result)pace(polls);
     }
+    if(!begun || result!=1)protocol_failure(BATTERY_PROTOCOL_EVENT,begun,result,&event);
     runtime.lease=false;
     if(query_tracking() && event.ack_attempted)runtime.query_receipt.effects++;
     if(!begun || result!=1) {
@@ -991,17 +1042,19 @@ static void sample_work(void *ctx) {
     if(runtime.platform.model_sample_begin)runtime.platform.model_sample_begin(runtime.sampler.sample.generation+1);
     uint8_t state=0;
     runtime.ac_coherent=true;
-    if(!transfer(false,0x60,&state,false))goto done;
+    if(!transfer(false,0x60,&state,false)){protocol_failure(BATTERY_PROTOCOL_AC_BEFORE,false,0,NULL);goto done;}
     runtime.ac_present=(state&2)!=0;runtime.ac_sampled_us=timer_monotonic_us();
     runtime.lease=true;
     bool begun=sbs_sample_begin(&runtime.sampler,&runtime.transport,0x20,timer_monotonic_us());int result=0;
     for(unsigned polls=1;begun&&!result;polls++){result=sbs_sample_poll(&runtime.sampler,timer_monotonic_us());if(!result)pace(polls);}
+    if(!begun || result!=1)protocol_failure(BATTERY_PROTOCOL_SAMPLE,begun,result,NULL);
     runtime.lease=false;
     runtime.ok=begun&&result==1&&sbs_sample_fresh(&runtime.sampler,timer_monotonic_us(),1000000)&&
         (runtime.service_mode||(runtime.sampler.sample.valid&(SBS_VALID_SOC|SBS_VALID_VOLTAGE|SBS_VALID_CAPACITY))==(SBS_VALID_SOC|SBS_VALID_VOLTAGE|SBS_VALID_CAPACITY));
+    if(begun && result==1 && !runtime.ok)protocol_failure(BATTERY_PROTOCOL_FRESHNESS,true,result,NULL);
     if(runtime.ok&&runtime.transition_mode) {
         uint8_t after=0;
-        if(!transfer(false,0x60,&after,false))runtime.ok=false;
+        if(!transfer(false,0x60,&after,false)){protocol_failure(BATTERY_PROTOCOL_AC_AFTER,false,0,NULL);runtime.ok=false;}
         else runtime.ac_coherent=runtime.ac_present==((after&2)!=0);
     }
 done:runtime.done=true;
@@ -1062,6 +1115,7 @@ static bool runtime_open(void *rsdp,struct limine_memmap_response *map,bool tran
     if(runtime.engaged||!timer_reference_ready())return false;
     runtime=(typeof(runtime)){.transition_mode=transitions,.service_mode=service_mode};
     transfer_failure=(struct battery_transfer_diagnostic){0};
+    first_protocol_failure=(struct battery_protocol_diagnostic){0};
     if(!battery_platform_open(&runtime.platform,rsdp,map)){console_write("battery: REFUSED platform/resource ownership preflight\n");return false;}
     if(smbus_transitions && (runtime.platform.query_policy!=BATTERY_QUERY_AIR61 || !air61_smbus_owned())) {
         console_write("battery: REFUSED Air6,1 parked AC transition owner\n");return false;
@@ -1256,6 +1310,7 @@ static void service_main(void *arg) {
     runtime_close();
     /* Force the study through post-close scheduling while unrelated I/O is owned. */
     if(query_failed)scheduler_yield();
+    protocol_failure_report("retired",service.cache.value.epoch);
     console_printf("battery-service: retired epoch=%u attempts=%u rejected=%u queries=%u notifications=%u attached=%u detached=%u heap=0 errors=0 denied=0\n",
         service.cache.value.epoch,service.cache.value.attempts,service.cache.value.rejected,
         runtime.queries,runtime.notifications,runtime.attached,runtime.detached);

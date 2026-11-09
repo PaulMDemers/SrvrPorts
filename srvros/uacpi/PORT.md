@@ -521,3 +521,16 @@ Each new lifetime clears the observation. SrvrOS `test-battery-transfer` execute
 the real wrapper and EC state machine with host IRQ/identity/clock/port models,
 including every admission refusal and the unchanged100ms timeout. These host
 cases and diagnostics do not establish a native cause or hardware acceptance.
+
+The first upper-protocol failure observer requires the SrvrOS EC-SMBus/SBS
+internal observation fields supplied by its coordinated consumer change. The
+runtime latches one failure before a local event disappears or a later sample/
+transfer refusal replaces its state. It retains worker/IF/I/O context and the
+original lower-level reason, byte status, phase, supplied clocks and maximum
+wall poll gap before cancel/poison. It reports at terminal containment or clean
+service retirement, including an empty-latch marker on successful retirement.
+This is the first observed operation failure, not a complete failure trace or
+proof that a later fault has the same cause. No pointer or payload is logged.
+Cancellation has no supplied failure clock and is explicitly marked unknown.
+Original deadlines, poll caps, last-good data, poison and ownership remain
+unchanged. No retry, IRQ enabling, extra EC/SMBus access or reset is introduced.
