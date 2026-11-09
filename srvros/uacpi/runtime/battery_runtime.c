@@ -1,6 +1,7 @@
 #include <srvros/battery_supervisor.h>
 #include "battery_bounded_policy.h"
 #include "battery_startup_timing.h"
+#include "battery_transfer_diagnostic.h"
 /* Bounded battery/AC diagnostic. Full runtime, linked separately from the
  * snapshot probe and the desktop. CPU0 lifecycle owner and one EC/AML worker. */
 #include "battery_platform.h"
@@ -159,8 +160,26 @@ static struct {
     uint64_t identity;
     bool running,stop,quarantined,finishing;
 } service;
+#ifdef SRVROS_BATTERY_TRANSFER_HOST_TEST
+extern uint64_t battery_transfer_test_flags;
+static uint64_t irq_save(void){uint64_t f=battery_transfer_test_flags;battery_transfer_test_flags&=~(1ull<<9);return f;}
+static void irq_restore(uint64_t f){battery_transfer_test_flags=f;}
+#else
 static uint64_t irq_save(void){uint64_t f;__asm__ volatile("pushfq; popq %0; cli":"=r"(f)::"memory");return f;}
 static void irq_restore(uint64_t f){if(f&(1ull<<9))__asm__ volatile("sti":::"memory");}
+#endif
+static struct battery_transfer_diagnostic transfer_failure;
+static void transfer_failure_report(void) {
+    const struct battery_transfer_diagnostic *d=&transfer_failure;
+    if(!d->valid)return;
+    console_printf("battery-transfer: version=1 at_us=%u reason=%u query=%u write=%u if=%u current=%u expected=%u entry_lease=%u entry_poison=%u begun=%u result=%d\n",
+        d->at_us,(uint64_t)d->reason,(uint64_t)d->query,(uint64_t)d->write,
+        (uint64_t)!!(d->flags&(1ull<<9)),d->current,d->expected,(uint64_t)d->lease,
+        (uint64_t)d->poisoned,(uint64_t)d->begun,(int64_t)d->result);
+    console_printf("battery-transfer-ec: version=1 at_us=%u phase=%u failed_phase=%u error=%u polls=%u status=%u started_us=%u last_us=%u timeout_us=%u\n",
+        d->at_us,(uint64_t)d->phase,(uint64_t)d->failed_phase,(uint64_t)d->error,
+        (uint64_t)d->polls,(uint64_t)d->status,d->started_us,d->last_us,d->timeout_us);
+}
 static void query_phase(uint8_t phase) {
     uint64_t f=irq_save();
     sci_query_phase(&runtime.query_observer,phase,timer_monotonic_us());
@@ -267,6 +286,7 @@ static __attribute__((noreturn)) void unsafe(const char *reason) {
     console_emergency();
     sci_report("fault");
     startup_report();
+    transfer_failure_report();
     if(auto_return && !reset)
         console_printf("battery-reset: BLOCKED workspace=%u io=%u; live storage retained\n",(uint64_t)mounted,(uint64_t)io);
     console_printf("battery: progress setup=%s setup_elapsed_us=%u worker=%u completed=%u in_flight=%u\n",
@@ -692,7 +712,17 @@ uacpi_status uacpi_kernel_pci_read##B(uacpi_handle h,uacpi_size o,uacpi_u##B *v)
 uacpi_status uacpi_kernel_pci_write##B(uacpi_handle h,uacpi_size o,uacpi_u##B v){(void)h;(void)o;(void)v;runtime.denied++;return UACPI_STATUS_DENIED;}
 PCI(8) PCI(16) PCI(32)
 static bool transfer(bool write,uint8_t a,uint8_t *v,bool query) {
-    if(!worker_context()||runtime.lease||runtime.transport.poisoned)return false;
+    /* Match worker_context's IF/identity requirement and original lease/poison
+     * order. Capture the rejected entry, never enable IRQs to admit it. */
+    uint64_t flags=irq_save();
+    struct battery_transfer_diagnostic d={.flags=flags,.query=query,.write=write,
+        .current=scheduler_current_thread_id(),.expected=runtime.worker.identity,
+        .lease=runtime.lease,.poisoned=runtime.transport.poisoned};
+    d.reason=!(flags&(1ull<<9))?BATTERY_TRANSFER_IRQ:
+        (!d.expected||d.current!=d.expected)?BATTERY_TRANSFER_WORKER:
+        d.lease?BATTERY_TRANSFER_LEASE:d.poisoned?BATTERY_TRANSFER_POISON:0;
+    irq_restore(flags);
+    if(d.reason)goto failed;
     bool timed=startup_begin(3,1);
     runtime.lease=true;
     bool ok=query?ec_transport_begin_query(&runtime.transport,timer_monotonic_us(),100000):
@@ -706,7 +736,18 @@ static bool transfer(bool write,uint8_t a,uint8_t *v,bool query) {
         }
     }
     if(result==1&&!write)*v=runtime.transport.result;
-    runtime.lease=false;startup_end(3,timed);return ok&&result==1;
+    runtime.lease=false;startup_end(3,timed);
+    if(ok&&result==1)return true;
+    d.begun=ok;d.result=result;
+    d.reason=ok?BATTERY_TRANSFER_POLL:BATTERY_TRANSFER_BEGIN;
+failed:
+    flags=irq_save();
+    d.at_us=timer_monotonic_us();d.phase=runtime.transport.phase;
+    d.failed_phase=runtime.transport.failed_phase;d.error=runtime.transport.error;
+    d.polls=runtime.transport.polls;d.status=runtime.transport.last_status;
+    d.started_us=runtime.transport.started_us;d.last_us=runtime.transport.last_us;
+    d.timeout_us=runtime.transport.timeout_us;d.valid=true;
+    transfer_failure=d;irq_restore(flags);return false;
 }
 static uacpi_status region_handler(uacpi_region_op op,uacpi_handle data) {
     if(op==UACPI_REGION_OP_ATTACH){uacpi_region_attach_data *a=data;
@@ -1020,6 +1061,7 @@ static void operation(uacpi_work_handler fn,uint64_t ms,const char *phase) {
 static bool runtime_open(void *rsdp,struct limine_memmap_response *map,bool transitions,bool service_mode) {
     if(runtime.engaged||!timer_reference_ready())return false;
     runtime=(typeof(runtime)){.transition_mode=transitions,.service_mode=service_mode};
+    transfer_failure=(struct battery_transfer_diagnostic){0};
     if(!battery_platform_open(&runtime.platform,rsdp,map)){console_write("battery: REFUSED platform/resource ownership preflight\n");return false;}
     if(smbus_transitions && (runtime.platform.query_policy!=BATTERY_QUERY_AIR61 || !air61_smbus_owned())) {
         console_write("battery: REFUSED Air6,1 parked AC transition owner\n");return false;
