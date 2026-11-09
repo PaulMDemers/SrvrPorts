@@ -511,3 +511,13 @@ kernel retains its refusal stub and isolated probe. See the
 [connected audit, policy and v31 trial](https://github.com/PaulMDemers/SrvrOS/blob/main/docs/native-ec-runtime.md#explicit-native-battery-diagnostic)
 for exact permissions, tests and remaining physical acceptance. Earlier sections
 record the incremental fixture work and are not native acceptance claims.
+
+The battery runtime retains failure-only transfer admission/poll evidence in
+fixed CPU0 RAM. Terminal containment prints entry IF/worker identities,
+lease/poison, begin/result and the EC phase/error/poll/status/clock snapshot.
+An old DONE/OK transaction is not a timeout. No retry, IRQ enabling, port access,
+allocation, runtime unwind or filesystem save is introduced by reporting.
+Each new lifetime clears the observation. SrvrOS `test-battery-transfer` executes
+the real wrapper and EC state machine with host IRQ/identity/clock/port models,
+including every admission refusal and the unchanged100ms timeout. These host
+cases and diagnostics do not establish a native cause or hardware acceptance.
