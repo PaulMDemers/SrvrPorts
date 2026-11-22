@@ -20,8 +20,7 @@ The OS continues to provide compact `grep` for its existing callers.
 
 The adapter adds normal flow cancellation checks to working copies of the GNU
 matching sources. The candidate heap ceiling applies to SDK break growth.
-Its memory and cancellation behavior require guest evidence. The bounded
-profile and the generated SDK build are under qualification.
+The two-boot and regression evidence below qualifies the bounded profile.
 
 The configure pass used the SrvrOS x86-64 SDK and target static linker with
 `--host=x86_64-unknown-none --disable-nls --disable-perl-regexp`. It selected
@@ -30,5 +29,41 @@ the included GNU regex implementation. `generated/` contains its headers.
 resolved by the actual ELF link. stdout close status is checked through the
 SDK directly, so the unported gnulib FILE-introspection modules are unused.
 The C locale wide-character helpers come from the existing diffutils adapter.
-Production and diagnostic ELF links succeed. Guest validation and the memory
-ceiling measurement are pending.
+Production and diagnostic ELF links succeed.
+
+The target passed on clean OS `0241ba87` with composite Ports `9fdd187`.
+The composite changes the battery logging call relative to Ports main solely
+to retain the byte-identical behavior of the existing OS pin. The Grep-only
+port head is `075938d`, and its Grep sources match those used to build the test
+candidate. The two-boot workflow matches GNU 3.12 in 19 admitted cases and
+verifies 14 refusals, including a late NUL from a pipe in quiet mode. Checks
+preserved input and saved output across reboot, found no temporary snapshot
+residue, and passed guest filesystem checks.
+
+The 16 MiB ceiling covers SDK break growth, including allocator fragmentation
+and installed heap pages. The combined 256 KiB, 8192-line and 64 KiB-line
+fixture reached 368,640 bytes of mapped heap. A zero-cap diagnostic refused a
+real allocation during startup, and a fresh process recovered. This measures
+the mapped heap arena for the tested workload. Fixed heap growth excludes
+stack, executable mappings, filesystem snapshot storage, and total RSS.
+
+The guest distinguishes read-only stdout error status 2 and default
+SIGPIPE status 141, matching native GNU signal behavior for a closed consumer.
+INT and TERM produce 130 and 143 after observed held output and after gated
+input read, compilation, and matching progress. The engine checkpoints
+periodically dispatch pending SDK signals. Diagnostic phase signals arrive
+while the helper holds the process at the progress boundary. Earlier failed
+stdout checks remain recorded, including the original stream-error defect and
+the superseded broken-pipe expectation.
+
+Two clean GNU core, gnulib, adapter and diagnostic rebuilds match the tested
+ELFs against the same SDK objects. Native upstream tests have five PASS and
+one SKIP for the macOS host lacking `timeout`. The normal staged program
+contains no diagnostic heap or phase controls. Target evidence includes the
+workflow and regressions, with the complete guest suite limited to the
+SrvrOS profile described above.
+
+The full ports regression and 498-command CLI regression pass. The Terminal
+walkthrough verifies readable numbered matches, a missing file diagnostic and
+successful count retry. [OS integration draft](https://github.com/PaulMDemers/SrvrOS/pull/503)
+retains the tested pin while the separate Pro logging review is pending.
