@@ -121,6 +121,12 @@ def main():
                                 '  (void) err;\n#ifdef ELOOP\n  if (err == ELOOP)\n    return true;\n#endif\n#ifdef EMLINK\n  if (err == EMLINK)\n    return true;\n#endif', name)
             text = replace_once(text, '  if (stdout_errno)\n    die (EXIT_TROUBLE, stdout_errno, _("write error"));',
                                 '  srvr_grep_checkpoint ();\n  if (stdout_errno)\n    die (EXIT_TROUBLE, stdout_errno, _("write error"));', name)
+            # SDK inttypes.h spells PRIdMAX as lld. Give the conversion
+            # the exact variadic argument type on this target.
+            text = replace_once(text, 'offset_width, pos);',
+                                'offset_width, (long long) pos);', name)
+            text = replace_once(text, '"%" PRIdMAX "\\n", count);',
+                                '"%" PRIdMAX "\\n", (long long) count);', name)
             text = replace_once(text, '\nmain (int argc, char **argv)', '\nsrvr_grep_main (int argc, char **argv)', name)
         transformed[name] = 'extern void srvr_grep_checkpoint (void);\nextern void srvr_grep_progress (int);\n' + text
     shutil.copytree(source, output, dirs_exist_ok=True, symlinks=True,

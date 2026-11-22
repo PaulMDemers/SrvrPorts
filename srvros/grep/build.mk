@@ -10,7 +10,7 @@ GGREP_LIB_OBJ := $(addprefix $(GGREP_DIR)/lib/,$(GGREP_GNULIB_SOURCES:.c=.o))
 GGREP_UPSTREAM := $(shell find ports/upstream/grep -type f 2>/dev/null | LC_ALL=C sort)
 GGREP_HEADERS := $(shell find $(GGREP_CONFIG) $(GGREP_COMPAT) -name '*.h' 2>/dev/null | LC_ALL=C sort)
 GGREP_FLAGS := $(filter-out -I shared/include userspace/lib/include,$(USER_CFLAGS)) \
-	-std=gnu2x -Wno-error -include $(GGREP_CONFIG)/config.h \
+	-std=gnu2x -Wno-error -Werror=format -Werror=incompatible-pointer-types -include $(GGREP_CONFIG)/config.h \
 	-include userspace/lib/include/limits.h -I $(GGREP_CONFIG) \
 	-I $(GGREP_DIR)/lib -I $(GGREP_DIR)/src -isystem $(GGREP_COMPAT) \
 	-isystem userspace/lib/include -isystem shared/include -DHAVE_CONFIG_H
