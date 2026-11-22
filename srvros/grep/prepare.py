@@ -116,11 +116,31 @@ def main():
                                 '  extern const char *srvr_grep_program_name;\n  return last_component (srvr_grep_program_name);', name)
         if name == 'src/grep.c':
             text = replace_once(text, '  if (! stdout_errno)\n    close_stdout ();',
-                                '  if (! stdout_errno && fclose (stdout) != 0)\n    {\n      error (0, errno, _("write error"));\n      _exit (EXIT_TROUBLE);\n    }', name)
+                                '''  if (! stdout_errno)
+    {
+      int error_before_close = ferror (stdout) ? (errno ? errno : EIO) : 0;
+      int close_status = fclose (stdout);
+      srvr_grep_checkpoint ();
+      if (error_before_close || close_status != 0)
+        {
+          error (0, error_before_close ? error_before_close : errno, _("write error"));
+          _exit (EXIT_TROUBLE);
+        }
+    }''', name)
             text = replace_once(text, '  if (err == ELOOP || err == EMLINK)\n    return true;',
                                 '  (void) err;\n#ifdef ELOOP\n  if (err == ELOOP)\n    return true;\n#endif\n#ifdef EMLINK\n  if (err == EMLINK)\n    return true;\n#endif', name)
             text = replace_once(text, '  if (stdout_errno)\n    die (EXIT_TROUBLE, stdout_errno, _("write error"));',
                                 '  srvr_grep_checkpoint ();\n  if (stdout_errno)\n    die (EXIT_TROUBLE, stdout_errno, _("write error"));', name)
+            # SrvrOS fwrite can accept all bytes into the stream buffer
+            # before discovering an underlying write error during its flush.
+            for condition in ('putchar (c) < 0', 'fputs (s, stdout) < 0',
+                              'vfprintf (stdout, format, ap) < 0',
+                              'fwrite (ptr, size, nmemb, stdout) != nmemb',
+                              'fflush (stdout) != 0'):
+                text = replace_once(text, f'  if ({condition})\n    stdout_errno = errno;',
+                                    f'  if ({condition} || ferror (stdout))\n'
+                                    '    stdout_errno = errno ? errno : EIO;\n'
+                                    '  srvr_grep_checkpoint ();', name)
             # SDK inttypes.h spells PRIdMAX as lld. Give the conversion
             # the exact variadic argument type on this target.
             text = replace_once(text, 'offset_width, pos);',
