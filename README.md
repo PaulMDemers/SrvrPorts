@@ -6,6 +6,8 @@ that will be brought up on srvros through the POSIX-compat layer.
 ## Upstream Source
 
 - `upstream/patch`: GNU Patch 2.8.1 release snapshot; see [port contract](srvros/patch/PORT.md).
+- `upstream/grep`: GNU Grep 3.12 release snapshot. See the [bounded ggrep port](srvros/grep/PORT.md).
+
 - `upstream/diffutils`: GNU Diffutils 3.12 release snapshot; see [port contract](srvros/diffutils/PORT.md).
 
 - `upstream/xz`: XZ Utils 5.8.4 release snapshot; see [port contract](srvros/xz/PORT.md).
