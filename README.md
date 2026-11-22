@@ -7,6 +7,7 @@ that will be brought up on srvros through the POSIX-compat layer.
 
 - `upstream/patch`: GNU Patch 2.8.1 release snapshot; see [port contract](srvros/patch/PORT.md).
 - `upstream/grep`: GNU Grep 3.12 release snapshot. See the [bounded ggrep port](srvros/grep/PORT.md).
+- `upstream/coreutils`: signed GNU Coreutils 9.12 release used to build the [standalone sha256sum port](srvros/sha256sum/PORT.md).
 
 - `upstream/diffutils`: GNU Diffutils 3.12 release snapshot; see [port contract](srvros/diffutils/PORT.md).
 
