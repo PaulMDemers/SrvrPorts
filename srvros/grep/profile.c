@@ -18,9 +18,19 @@
 
 const char *srvr_grep_program_name = "ggrep";
 static volatile sig_atomic_t pending_signal;
+/* The SDK dispatches INT/TERM legacy handlers cooperatively. Its dispatch
+   entry is used outside I/O so CPU-only GNU work also observes delivery. */
+extern int __posix_signal_dispatch_pending(void);
 
 static void record_signal(int sig) { if (!pending_signal) pending_signal = sig; }
 void srvr_grep_checkpoint(void) {
+    static unsigned steps;
+    if (++steps == 1024) {
+        int saved = errno;
+        steps = 0;
+        (void)__posix_signal_dispatch_pending();
+        errno = saved;
+    }
     int sig = pending_signal;
     /* The kernel closes the unlinked snapshot and descriptors. Avoid flushing
        buffered stdout during cancellation, which can reblock on a full pipe. */
@@ -93,7 +103,7 @@ static int capture(int input, FILE *snapshot) {
         }
         size_t written = fwrite(buf, 1, (size_t)got, snapshot);
         io_checkpoint();
-        if (written != (size_t)got) return syserror("temporary snapshot");
+        if (written != (size_t)got || ferror(snapshot)) return syserror("temporary snapshot");
     }
     int rc = fflush(snapshot);
     io_checkpoint();
