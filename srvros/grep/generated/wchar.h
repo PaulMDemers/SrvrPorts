@@ -744,7 +744,8 @@ typedef unsigned int rpl_wint_t;
 #if !(((defined _WIN32 && !defined __CYGWIN__) || 0) && 1) || 1
 # if !GNULIB_defined_mbstate_t
 #  if !(defined _AIX || defined _MSC_VER || defined __OpenBSD__)
-typedef int rpl_mbstate_t;
+/* SrvrOS wchar calls use the SDK type. Gnulib stores at most four bytes. */
+typedef mbstate_t rpl_mbstate_t;
 #   undef mbstate_t
 #   define mbstate_t rpl_mbstate_t
 #  endif
