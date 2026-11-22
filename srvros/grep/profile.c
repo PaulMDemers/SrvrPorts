@@ -22,7 +22,9 @@ static volatile sig_atomic_t pending_signal;
 static void record_signal(int sig) { if (!pending_signal) pending_signal = sig; }
 void srvr_grep_checkpoint(void) {
     int sig = pending_signal;
-    if (sig) exit(128 + sig);
+    /* The kernel closes the unlinked snapshot and descriptors. Avoid flushing
+       buffered stdout during cancellation, which can reblock on a full pipe. */
+    if (sig) _exit(128 + sig);
 }
 
 /* Checkpoints run outside handlers and preserve the I/O call's errno. */

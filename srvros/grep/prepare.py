@@ -119,6 +119,8 @@ def main():
                                 '  if (! stdout_errno && fclose (stdout) != 0)\n    {\n      error (0, errno, _("write error"));\n      _exit (EXIT_TROUBLE);\n    }', name)
             text = replace_once(text, '  if (err == ELOOP || err == EMLINK)\n    return true;',
                                 '  (void) err;\n#ifdef ELOOP\n  if (err == ELOOP)\n    return true;\n#endif\n#ifdef EMLINK\n  if (err == EMLINK)\n    return true;\n#endif', name)
+            text = replace_once(text, '  if (stdout_errno)\n    die (EXIT_TROUBLE, stdout_errno, _("write error"));',
+                                '  srvr_grep_checkpoint ();\n  if (stdout_errno)\n    die (EXIT_TROUBLE, stdout_errno, _("write error"));', name)
             text = replace_once(text, '\nmain (int argc, char **argv)', '\nsrvr_grep_main (int argc, char **argv)', name)
         transformed[name] = 'extern void srvr_grep_checkpoint (void);\nextern void srvr_grep_progress (int);\n' + text
     shutil.copytree(source, output, dirs_exist_ok=True, symlinks=True,
