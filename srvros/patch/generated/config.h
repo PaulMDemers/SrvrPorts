@@ -2719,7 +2719,7 @@
 /* #undef mode_t */
 
 /* Define to the type of st_nlink in struct stat, or a supertype. */
-#define nlink_t int
+/* #undef nlink_t */
 
 /* Define to 'long int' if <sys/types.h> does not define. */
 /* #undef off_t */
